@@ -1,0 +1,64 @@
+{
+  "name": "vtu-node-processor",
+  "displayName": "VTU Node Processor",
+  "description": "VTU No-Code Data Flow Studio (WebGPU / WebGL2 Node Processor) for viewing and analyzing .vtu files in VS Code.",
+  "version": "0.1.0",
+  "publisher": "vtu-viewer",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "activationEvents": [
+    "onCustomEditor:vtuNodeProcessor.vtuEditor",
+    "onCommand:vtuNodeProcessor.openViewer",
+    "onCommand:vtuNodeProcessor.openFile"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "vtuNodeProcessor.vtuEditor",
+        "displayName": "VTU Node Processor",
+        "selector": [
+          {
+            "filenamePattern": "*.vtu"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "vtuNodeProcessor.openViewer",
+        "title": "VTU: Open Node Processor"
+      },
+      {
+        "command": "vtuNodeProcessor.openFile",
+        "title": "Open in VTU Node Processor"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "vtuNodeProcessor.openFile",
+          "when": "resourceExtname == .vtu",
+          "group": "navigation"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "vtuNodeProcessor.openFile",
+          "when": "resourceExtname == .vtu",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "dependencies": {
+    "three": "0.170.0"
+  }
+}
+

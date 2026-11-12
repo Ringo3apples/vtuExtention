@@ -1,0 +1,9 @@
+.vscode/**
+.vscode-test/**
+**/*.vtu
+node_modules/three/src/**
+node_modules/three/examples/**
+node_modules/three/build/three.cjs
+node_modules/three/build/*.min.js
+node_modules/three/build/three.webgpu.nodes.js
+

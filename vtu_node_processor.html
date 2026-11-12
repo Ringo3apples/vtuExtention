@@ -1,0 +1,4319 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VTU No-Code Data Flow Studio (WebGPU / Node Processor)</title>
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --panel-bg: rgba(15, 23, 42, 0.82);
+      --panel-border: rgba(56, 189, 248, 0.22);
+      --accent-cyan: #38bdf8;
+      --accent-blue: #3b82f6;
+      --accent-purple: #a855f7;
+      --accent-amber: #f59e0b;
+      --accent-emerald: #10b981;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* Top Navigation Toolbar */
+    #toolbar {
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(51, 65, 85, 0.8);
+      display: flex;
+      align-items: center;
+      padding: 6px 14px;
+      gap: 8px;
+      z-index: 100;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      flex-wrap: nowrap;
+      overflow-x: auto;
+    }
+
+    .toolbar-title {
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-right: 6px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .toolbar-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: white;
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+      border-color: #60a5fa;
+    }
+
+    .btn-secondary {
+      background: rgba(30, 41, 59, 0.8);
+      border-color: rgba(71, 85, 105, 0.6);
+      color: #e2e8f0;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(51, 65, 85, 0.9);
+      border-color: #94a3b8;
+      box-shadow: none;
+    }
+
+    .btn-accent {
+      background: linear-gradient(135deg, #0ea5e9, #0284c7);
+      border-color: #38bdf8;
+    }
+
+    .btn-accent:hover {
+      background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
+    }
+
+    select,
+    input[type="number"],
+    input[type="text"],
+    input[type="range"] {
+      background: #0f172a;
+      color: #f8fafc;
+      border: 1px solid #334155;
+      padding: 4px 6px;
+      border-radius: 6px;
+      font-size: 11px;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      box-sizing: border-box;
+      min-width: 0;
+    }
+
+    select:focus,
+    input:focus {
+      border-color: #38bdf8;
+    }
+
+    .divider {
+      width: 1px;
+      height: 22px;
+      background: #334155;
+      margin: 0 4px;
+    }
+
+    .badge-gpu {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    /* Main Workspace Container */
+    #workspace-container {
+      flex: 1;
+      position: relative;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* 3D Viewport Layer (Underneath) */
+    #viewport-container {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, #172033 0%, #090d16 100%);
+      z-index: 10;
+      cursor: grab;
+    }
+
+    #main-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Transparent Node Graph Editor Layer (Overlaid) */
+    #node-graph-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      pointer-events: auto;
+      transition: opacity 0.2s ease, visibility 0.2s;
+      background-image: radial-gradient(rgba(56, 189, 248, 0.12) 1px, transparent 1px);
+      background-size: 24px 24px;
+      cursor: grab;
+    }
+
+    /* Transparent Wire Canvas */
+    #wire-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 22;
+    }
+
+    /* Node DOM Container */
+    #nodes-container {
+      position: absolute;
+      inset: 0;
+      overflow: visible;
+      z-index: 24;
+      pointer-events: none;
+      transform-origin: 0 0;
+    }
+
+    /* Glassmorphic Node Card */
+    .node-card {
+      position: absolute;
+      width: 260px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.55), 0 0 1px rgba(255, 255, 255, 0.15) inset;
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      transition: box-shadow 0.2s, border-color 0.2s;
+    }
+
+    .node-card.vtu-input-card {
+      width: 330px;
+    }
+
+    .node-card.probe-card {
+      width: 310px;
+    }
+
+    .node-card.contour-card {
+      width: 280px;
+    }
+
+    .node-card.selected {
+      border-color: #38bdf8;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.4), 0 8px 30px rgba(0, 0, 0, 0.6);
+    }
+
+    /* Node Header */
+    .node-header {
+      padding: 8px 12px;
+      background: rgba(2, 6, 23, 0.65);
+      border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+      border-radius: 9px 9px 0 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: grab;
+    }
+
+    .node-header:active {
+      cursor: grabbing;
+    }
+
+    .node-title-group {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .node-icon {
+      font-size: 14px;
+    }
+
+    .node-close-btn {
+      color: #64748b;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0 4px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+    }
+
+    .node-close-btn:hover {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.15);
+    }
+
+    /* Node Body */
+    .node-body {
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 11px;
+      overflow-x: hidden;
+    }
+
+    .node-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .node-row input,
+    .node-row select {
+      min-width: 0;
+    }
+
+    .node-row label {
+      color: var(--text-muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    /* Node Sockets Layout */
+    .node-sockets {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      position: relative;
+      gap: 12px;
+      max-height: 420px;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .node-sockets::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .node-sockets::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 3px;
+    }
+
+    .node-sockets::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+
+    .node-sockets::-webkit-scrollbar-thumb:hover {
+      background: #38bdf8;
+    }
+
+    .sockets-in-col,
+    .sockets-out-col {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .sockets-out-col {
+      align-items: flex-end;
+      width: 100%;
+    }
+
+    .socket-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #cbd5e1;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .socket-row:hover {
+      background: rgba(56, 189, 248, 0.12);
+      color: #38bdf8;
+    }
+
+    .socket-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid #38bdf8;
+      background: #0f172a;
+      cursor: crosshair;
+      transition: transform 0.15s, box-shadow 0.15s, background-color 0.15s;
+      position: relative;
+      pointer-events: auto;
+    }
+
+    .socket-dot:hover {
+      transform: scale(1.35);
+      background: #38bdf8;
+      box-shadow: 0 0 10px #38bdf8;
+    }
+
+    .socket-dot.connected {
+      background: #38bdf8;
+      box-shadow: 0 0 6px #38bdf8;
+    }
+
+    .socket-dot.scalar {
+      border-color: #f59e0b;
+    }
+
+    .socket-dot.scalar:hover,
+    .socket-dot.scalar.connected {
+      background: #f59e0b;
+      box-shadow: 0 0 10px #f59e0b;
+    }
+
+    .socket-dot.vector {
+      border-color: #10b981;
+    }
+
+    .socket-dot.vector:hover,
+    .socket-dot.vector.connected {
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981;
+    }
+
+    /* Live Output & Graph inside Node */
+    .node-preview-box {
+      background: rgba(2, 6, 23, 0.7);
+      border: 1px solid rgba(51, 65, 85, 0.5);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 10px;
+      color: #38bdf8;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .node-chart-canvas {
+      width: 100%;
+      height: 85px;
+      background: rgba(2, 6, 23, 0.85);
+      border: 1px solid rgba(51, 65, 85, 0.6);
+      border-radius: 6px;
+      display: block;
+      margin-top: 4px;
+    }
+
+    /* Legend Overlay */
+    #legend-container {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(8px);
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 130px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+      pointer-events: none;
+      z-index: 50;
+    }
+
+    #legend-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      word-break: break-all;
+    }
+
+    #legend-bar {
+      height: 140px;
+      width: 20px;
+      border-radius: 4px;
+      border: 1px solid #475569;
+    }
+
+    .legend-val {
+      font-size: 11px;
+      color: #f1f5f9;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    /* Status Bar */
+    #status-bar {
+      position: absolute;
+      bottom: 10px;
+      left: 12px;
+      font-size: 11px;
+      color: #94a3b8;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(6px);
+      padding: 4px 10px;
+      border-radius: 5px;
+      border: 1px solid #334155;
+      pointer-events: none;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Hover Tooltip */
+    #tooltip {
+      position: absolute;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(4px);
+      border: 1px solid #38bdf8;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      color: #f8fafc;
+      pointer-events: none;
+      display: none;
+      z-index: 60;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      white-space: pre-wrap;
+    }
+
+    /* Add Node Floating Menu */
+    #add-node-menu {
+      position: absolute;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      padding: 6px;
+      display: none;
+      flex-direction: column;
+      gap: 2px;
+      z-index: 100;
+      min-width: 170px;
+    }
+
+    .menu-item {
+      padding: 6px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #cbd5e1;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .menu-item:hover {
+      background: rgba(56, 189, 248, 0.2);
+      color: #38bdf8;
+    }
+
+    /* Drag Overlay */
+    #drop-zone {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(6px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 90;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    #drop-zone.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .key-badge {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+      padding: 1px 4px;
+      font-size: 10px;
+      font-family: monospace;
+    }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+      "three/webgpu": "https://unpkg.com/three@0.170.0/build/three.webgpu.js",
+      "three/tsl": "https://unpkg.com/three@0.170.0/build/three.tsl.js"
+    }
+  }
+  </script>
+</head>
+
+<body>
+
+  <!-- Top Toolbar -->
+  <div id="toolbar">
+    <!-- 1. toolbar-title & backend-badge (上下に表示) -->
+    <div class="toolbar-brand"
+      style="display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; margin-right: 4px; white-space: nowrap; flex-shrink: 0;">
+      <div class="toolbar-title" style="margin: 0; font-size: 14px; font-weight: 800; line-height: 1.1; white-space: nowrap;">VTU View</div>
+      <span class="badge-gpu" id="backend-badge" title="グラフィックスバックエンド判定中"
+        style="font-size: 9px; padding: 1px 5px; line-height: 1.2; white-space: nowrap;">初期化中...</span>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- 2. VTU読込 -->
+    <button class="btn btn-secondary" id="btn-load-vtu" onclick="document.getElementById('file-input').click()">
+      📂VTU読込
+    </button>
+    <input type="file" id="file-input" accept=".vtu" style="display: none;">
+
+    <div class="divider"></div>
+
+    <!-- 3. ノード読込 -->
+    <button class="btn btn-secondary" id="btn-load-flow" title="保存したノード設定 (JSON) を読み込む">
+      📂ノード読込
+    </button>
+    <input type="file" id="flow-file-input" accept=".json" style="display: none;">
+
+    <!-- 4. ノード保存 -->
+    <button class="btn btn-secondary" id="btn-save-flow" title="ノード接続・配置をJSONファイルとして保存">
+      💾ノード保存
+    </button>
+
+    <div class="divider"></div>
+
+    <!-- 5. ノード追加 -->
+    <button class="btn btn-secondary" id="btn-add-node-menu">
+      ➕ ノード追加 ▾
+    </button>
+
+    <!-- 6. ノード切替 -->
+    <button class="btn btn-secondary" id="btn-toggle-nodes" title="ノード画面の表示/非表示を切り替え (Tabキー)">
+      👁️ ノード切替 <span class="key-badge">Tab</span>
+    </button>
+
+    <div class="divider"></div>
+
+    <!-- 7. 全体表示 -->
+    <button class="btn btn-secondary" id="btn-reset-cam" title="3D視点を初期化">全体表示</button>
+
+    <div class="divider"></div>
+
+    <!-- 8. メッシュ & 9. 境界線 -->
+    <div class="toolbar-group">
+      <label class="toolbar-label" style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+        <input type="checkbox" id="chk-wireframe"> メッシュ
+      </label>
+      <label class="toolbar-label" style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+        <input type="checkbox" id="chk-boundary" checked> 境界線
+      </label>
+    </div>
+  </div>
+
+  <!-- Workspace Container -->
+  <div id="workspace-container">
+    <!-- 3D Three.js Viewport (Layer 1) -->
+    <div id="viewport-container">
+      <canvas id="main-canvas"></canvas>
+    </div>
+
+    <!-- Transparent Node Editor Overlay (Layer 2) -->
+    <div id="node-graph-layer">
+      <!-- Wires Canvas -->
+      <canvas id="wire-canvas"></canvas>
+      <!-- HTML Node Cards -->
+      <div id="nodes-container"></div>
+    </div>
+
+    <!-- Drop Zone -->
+    <div id="drop-zone">
+      <h2 style="font-size: 22px; color: #38bdf8; margin-bottom: 8px;">ここに VTU または設定 JSON ファイルをドロップ</h2>
+      <p style="font-size: 13px; color: #94a3b8;">Elmerの計算結果 (.vtu) または保存したパイプライン設定 (.json) を瞬時に反映します</p>
+    </div>
+
+    <!-- Legend Overlay -->
+    <div id="legend-container" style="display: none;">
+      <div id="legend-title">Output Field</div>
+      <div class="legend-val" id="legend-max">Max: 0.0</div>
+      <div id="legend-bar"></div>
+      <div class="legend-val" id="legend-min">Min: 0.0</div>
+    </div>
+
+    <!-- Hover Tooltip -->
+    <div id="tooltip"></div>
+
+    <!-- Status Bar -->
+    <div id="status-bar">
+      <span>⚡ 準備完了</span>
+    </div>
+  </div>
+
+  <!-- Add Node Context Menu -->
+  <div id="add-node-menu">
+    <div class="menu-item" data-type="vtu_input">📥 VTU データ入力 (全ポート)</div>
+    <div class="menu-item" data-type="coordinates">📍 節点座標 (X, Y, r)</div>
+    <div class="menu-item" data-type="constant">🔢 スカラー / 定数</div>
+    <div class="menu-item" data-type="time_input">⏱️ 時間 / タイマー (経過時間 t)</div>
+    <div class="menu-item" data-type="binary_math">➕ 2項演算 (A + B, A * B...)</div>
+    <div class="menu-item" data-type="unary_math">⚡ 関数 (|x|, x², √x, dB...)</div>
+    <div class="menu-item" data-type="expression">📐 自由数式 (0.5*A²/μ₀...)</div>
+    <div class="menu-item" data-type="threshold_filter">✂️ 閾値・マスクフィルター</div>
+    <div class="menu-item" data-type="output_contour">🎨 3D コンタ表示 (出力)</div>
+    <div class="menu-item" data-type="output_line_probe">📏 直線プロファイル (Line Probe)</div>
+    <div class="menu-item" data-type="output_vectors">↗️ 2D ベクトル矢印 (出力)</div>
+  </div>
+
+  <!-- Main Logic -->
+  <script type="module">
+    import * as THREE from 'three/webgpu';
+
+    // ==========================================
+    // 1. Color Maps
+    // ==========================================
+    const ColorMaps = {
+      bkr: (t) => {
+        // Symmetric colormap: t=0 -> Blue (0,0,1), t=0.5 -> Black (0,0,0), t=1 -> Red (1,0,0)
+        const ct = Math.max(0, Math.min(1, t));
+        if (ct <= 0.5) {
+          const s = (0.5 - ct) * 2;
+          return [0, 0, s];
+        } else {
+          const s = (ct - 0.5) * 2;
+          return [s, 0, 0];
+        }
+      },
+      turbo: (t) => {
+        const r = Math.sin(Math.PI * (t - 0.25)) * 0.5 + 0.5;
+        const g = Math.sin(Math.PI * (t - 0.0)) * 0.5 + 0.5;
+        const b = Math.sin(Math.PI * (t + 0.25)) * 0.5 + 0.5;
+        return [Math.max(0, Math.min(1, r)), Math.max(0, Math.min(1, g)), Math.max(0, Math.min(1, b))];
+      },
+      jet: (t) => {
+        const r = Math.min(Math.max(1.5 - Math.abs(4 * t - 3), 0), 1);
+        const g = Math.min(Math.max(1.5 - Math.abs(4 * t - 2), 0), 1);
+        const b = Math.min(Math.max(1.5 - Math.abs(4 * t - 1), 0), 1);
+        return [r, g, b];
+      },
+      viridis: (t) => {
+        const r = 0.267 + t * (0.004 + t * (2.4 - t * 1.7));
+        const g = 0.004 + t * (0.87 + t * (0.4 - t * 0.3));
+        const b = 0.329 + t * (1.2 - t * (1.8 - t * 0.3));
+        return [Math.min(1, Math.max(0, r)), Math.min(1, Math.max(0, g)), Math.min(1, Math.max(0, b))];
+      },
+      coolwarm: (t) => [t, (1 - Math.abs(t - 0.5) * 2) * 0.8, 1 - t],
+      plasma: (t) => [t, (1 - t) * 0.4 + t * 0.2, (1 - t) * 0.8],
+      grayscale: (t) => [t, t, t]
+    };
+
+    // ==========================================
+    // 2. Three.js 3D Viewport Setup
+    // ==========================================
+    let renderer, scene, camera;
+    let contourMesh = null;
+    let wireframeMesh = null;
+    let boundaryMesh = null;
+    let vectorMesh = null;
+    let probeMesh = null;
+    let activePickingNode = null;
+    let pickingStep = 1;
+
+    let vtuData = null;
+    let cameraBounds = { minX: -1, maxX: 1, minY: -1, maxY: 1 };
+    let cameraCenter = { x: 0, y: 0 };
+    let viewZoom = 1.0;
+    let hasLoadedFile = false;
+    let isDragging3D = false;
+    let dragStart3D = { x: 0, y: 0 };
+
+    const canvas3D = document.getElementById('main-canvas');
+    const viewportContainer = document.getElementById('viewport-container');
+    const statusBar = document.getElementById('status-bar');
+
+    async function initThree() {
+      const badge = document.getElementById('backend-badge');
+      try {
+        if (!navigator.gpu) throw new Error('WebGPU API is not supported in this browser environment');
+        renderer = new THREE.WebGPURenderer({ canvas: canvas3D, antialias: true });
+        await renderer.init();
+        if (renderer.backend && renderer.backend.isWebGLBackend) {
+          badge.textContent = 'WebGL';
+          badge.title = 'WebGPU非対応のため WebGL レンダラーで動作中';
+          badge.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+        } else {
+          badge.textContent = 'WebGPU';
+          badge.title = 'WebGPU ネイティブバックエンドで高速描画中';
+          badge.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+        }
+      } catch (e) {
+        console.warn('WebGPU init failed, falling back to WebGL', e);
+        renderer = new THREE.WebGLRenderer({ canvas: canvas3D, antialias: true });
+        badge.textContent = 'WebGL';
+        badge.title = 'WebGPU初期化エラーのため WebGL で描画中';
+        badge.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+      }
+
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(viewportContainer.clientWidth, viewportContainer.clientHeight);
+
+      scene = new THREE.Scene();
+      camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
+      camera.position.set(0, 0, 10);
+      camera.lookAt(0, 0, 0);
+
+      window.addEventListener('resize', onResize);
+      animate();
+    }
+
+    let lastAnimTime = performance.now();
+    function animate(currentTime) {
+      requestAnimationFrame(animate);
+
+      const now = typeof currentTime === 'number' ? currentTime : performance.now();
+      const dt = Math.min(0.1, (now - lastAnimTime) / 1000);
+      lastAnimTime = now;
+
+      let hasActiveTimer = false;
+      if (Array.isArray(nodes)) {
+        for (let i = 0; i < nodes.length; i++) {
+          const n = nodes[i];
+          if (n.type === 'time_input' && n.state && n.state.running) {
+            n.state.elapsed += dt * (n.state.speed || 1.0);
+            if (n.ui && n.ui.updateDisplay) {
+              n.ui.updateDisplay();
+            }
+            hasActiveTimer = true;
+          }
+        }
+      }
+
+      if (hasActiveTimer) {
+        executeGraph(true);
+      }
+
+      if (renderer && scene && camera) {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function onResize() {
+      if (!renderer || !camera) return;
+      const w = viewportContainer.clientWidth;
+      const h = viewportContainer.clientHeight;
+      renderer.setSize(w, h);
+      updateCameraProjection();
+      resizeWireCanvas();
+    }
+
+    function updateCameraProjection() {
+      const w = viewportContainer.clientWidth;
+      const h = viewportContainer.clientHeight;
+      const aspect = w / h;
+
+      const spanX = (cameraBounds.maxX - cameraBounds.minX) || 2;
+      const spanY = (cameraBounds.maxY - cameraBounds.minY) || 2;
+      const boundAspect = spanX / spanY;
+
+      let halfW, halfH;
+      if (aspect > boundAspect) {
+        halfH = (spanY * 0.6) / viewZoom;
+        halfW = halfH * aspect;
+      } else {
+        halfW = (spanX * 0.6) / viewZoom;
+        halfH = halfW / aspect;
+      }
+
+      camera.left = cameraCenter.x - halfW;
+      camera.right = cameraCenter.x + halfW;
+      camera.top = cameraCenter.y + halfH;
+      camera.bottom = cameraCenter.y - halfH;
+      camera.updateProjectionMatrix();
+    }
+
+    function fitCamera() {
+      if (!vtuData || vtuData.numPoints === 0) return;
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (let i = 0; i < vtuData.numPoints; i++) {
+        const x = vtuData.points[i * 3];
+        const y = vtuData.points[i * 3 + 1];
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+      cameraBounds = { minX, maxX, minY, maxY };
+      cameraCenter = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+      viewZoom = 1.0;
+      updateCameraProjection();
+    }
+
+    function reset3DCamera() {
+      fitCamera();
+    }
+
+    // ==========================================
+    // 3. VTU XML Parser (Robust Appended Binary & ASCII Support)
+    // ==========================================
+    function parseVTU(xmlText, buffer, appendedPos) {
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlText, "application/xml");
+
+      const piece = xmlDoc.querySelector('Piece');
+      if (!piece) throw new Error("No Piece found in VTU.");
+
+      const numPoints = parseInt(piece.getAttribute('NumberOfPoints'));
+      const numCells = parseInt(piece.getAttribute('NumberOfCells'));
+
+      let appendedOffset = -1;
+      if (appendedPos >= 0 && buffer) {
+        const uint8 = new Uint8Array(buffer);
+        for (let i = appendedPos; i < uint8.length; i++) {
+          if (uint8[i] === 95) { // '_' character
+            appendedOffset = i + 1;
+            break;
+          }
+        }
+      }
+
+      function extractArray(dataArrayNode) {
+        if (!dataArrayNode) return { data: new Float64Array(0), numComp: 1 };
+        const format = dataArrayNode.getAttribute('format') || 'ascii';
+        const type = dataArrayNode.getAttribute('type') || 'Float64';
+        const numComp = parseInt(dataArrayNode.getAttribute('NumberOfComponents') || '1');
+
+        if (format === 'appended' && appendedOffset >= 0) {
+          const offset = parseInt(dataArrayNode.getAttribute('offset') || '0');
+          const dataView = new DataView(buffer, appendedOffset + offset);
+          const numBytes = dataView.getUint32(0, true);
+
+          const startByte = appendedOffset + offset + 4;
+          const sliceBuffer = buffer.slice(startByte, startByte + numBytes);
+
+          if (type === 'Float64') {
+            return { data: new Float64Array(sliceBuffer), numComp };
+          } else if (type === 'Int32') {
+            return { data: new Int32Array(sliceBuffer), numComp };
+          } else {
+            return { data: new Float32Array(sliceBuffer), numComp };
+          }
+        } else {
+          const raw = dataArrayNode.textContent.trim().split(/\s+/);
+          const arr = type === 'Int32' ? new Int32Array(raw.map(v => parseInt(v))) : new Float64Array(raw.map(v => parseFloat(v)));
+          return { data: arr, numComp };
+        }
+      }
+
+      const pointsNode = xmlDoc.querySelector('Points DataArray');
+      const pointsData = extractArray(pointsNode);
+
+      const connNode = xmlDoc.querySelector('Cells DataArray[Name="connectivity"]');
+      const typesNode = xmlDoc.querySelector('Cells DataArray[Name="types"]');
+      const offsetsNode = xmlDoc.querySelector('Cells DataArray[Name="offsets"]');
+      const connData = extractArray(connNode);
+      const typesData = extractArray(typesNode);
+      const offsetsData = extractArray(offsetsNode);
+
+      const cellDataNode = xmlDoc.querySelector('CellData');
+      let geometryIds = null;
+      if (cellDataNode) {
+        const geomNode = cellDataNode.querySelector('DataArray[Name="GeometryIds"]') || cellDataNode.querySelector('DataArray');
+        if (geomNode) {
+          geometryIds = extractArray(geomNode).data;
+        }
+      }
+
+      const pointDataNode = xmlDoc.querySelector('PointData');
+      const fields = {};
+      if (pointDataNode) {
+        const arrays = pointDataNode.querySelectorAll('DataArray');
+        arrays.forEach(arr => {
+          const name = arr.getAttribute('Name');
+          fields[name] = extractArray(arr);
+        });
+      }
+
+      // Triangulation & Boundary Extraction
+      const triIndices = [];
+      const wireIndices = [];
+      const materialEdges = [];
+      const edgeMap = new Map();
+
+      let offsetIdx = 0;
+      for (let c = 0; c < numCells; c++) {
+        const nextOffset = offsetsData.data[c];
+        const cellType = typesData.data[c];
+        const nodeCount = nextOffset - offsetIdx;
+        const geomId = geometryIds ? geometryIds[c] : 1;
+
+        if (cellType === 5 || (nodeCount === 3 && cellType !== 3)) {
+          // Triangle
+          const n0 = connData.data[offsetIdx];
+          const n1 = connData.data[offsetIdx + 1];
+          const n2 = connData.data[offsetIdx + 2];
+          triIndices.push(n0, n1, n2);
+
+          wireIndices.push(n0, n1, n1, n2, n2, n0);
+          addEdge(n0, n1, geomId);
+          addEdge(n1, n2, geomId);
+          addEdge(n2, n0, geomId);
+        } else if (cellType === 9 || nodeCount === 4) {
+          // Quad -> 2 Triangles
+          const n0 = connData.data[offsetIdx];
+          const n1 = connData.data[offsetIdx + 1];
+          const n2 = connData.data[offsetIdx + 2];
+          const n3 = connData.data[offsetIdx + 3];
+          triIndices.push(n0, n1, n2, n0, n2, n3);
+
+          wireIndices.push(n0, n1, n1, n2, n2, n3, n3, n0);
+          addEdge(n0, n1, geomId);
+          addEdge(n1, n2, geomId);
+          addEdge(n2, n3, geomId);
+          addEdge(n3, n0, geomId);
+        } else if (cellType === 3 || nodeCount === 2) {
+          // 1D Line Element
+          const n0 = connData.data[offsetIdx];
+          const n1 = connData.data[offsetIdx + 1];
+          materialEdges.push({ n1: n0, n2: n1 });
+        }
+        offsetIdx = nextOffset;
+      }
+
+      function addEdge(n1, n2, geomId) {
+        const minN = Math.min(n1, n2);
+        const maxN = Math.max(n1, n2);
+        const key = `${minN}_${maxN}`;
+        if (!edgeMap.has(key)) {
+          edgeMap.set(key, { n1: minN, n2: maxN, geoms: new Set([geomId]), count: 1 });
+        } else {
+          const entry = edgeMap.get(key);
+          entry.geoms.add(geomId);
+          entry.count++;
+        }
+      }
+
+      edgeMap.forEach((entry) => {
+        if (entry.geoms.size >= 2 || entry.count === 1) {
+          materialEdges.push({ n1: entry.n1, n2: entry.n2 });
+        }
+      });
+
+      return {
+        numPoints,
+        numCells,
+        points: pointsData.data,
+        connectivity: connData.data,
+        triIndices: new Uint32Array(triIndices),
+        wireIndices: new Uint32Array(wireIndices),
+        materialEdges,
+        fields
+      };
+    }
+
+    // ==========================================
+    // 4. Interactive Node Graph System (DAG Engine)
+    // ==========================================
+    let nodes = [];
+    let wires = [];
+    let nextNodeId = 1;
+    let nextWireId = 1;
+
+    let draggingNode = null;
+    let dragNodeOffset = { x: 0, y: 0 };
+    let connectingWire = null; // { fromNodeId, fromSocketId, socketType, mouseX, mouseY }
+    let nodePan = { x: 0, y: 0 };
+    let nodeZoom = 1.0;
+    let isPanningNodes = false;
+    let panStart = { x: 0, y: 0 };
+
+    const nodeGraphLayer = document.getElementById('node-graph-layer');
+    const nodesContainer = document.getElementById('nodes-container');
+    const wireCanvas = document.getElementById('wire-canvas');
+    const wireCtx = wireCanvas.getContext('2d');
+
+    function updateNodeGraphTransform() {
+      nodesContainer.style.transform = `translate(${nodePan.x}px, ${nodePan.y}px) scale(${nodeZoom})`;
+      nodeGraphLayer.style.backgroundPosition = `${nodePan.x}px ${nodePan.y}px`;
+      nodeGraphLayer.style.backgroundSize = `${24 * nodeZoom}px ${24 * nodeZoom}px`;
+      const btnZoom = document.getElementById('btn-reset-node-view');
+      if (btnZoom) btnZoom.textContent = `🔍 ${Math.round(nodeZoom * 100)}%`;
+      drawWires();
+    }
+
+    function resizeWireCanvas() {
+      wireCanvas.width = viewportContainer.clientWidth;
+      wireCanvas.height = viewportContainer.clientHeight;
+      drawWires();
+    }
+
+    // --- Node Definition Factory ---
+    const NODE_TEMPLATES = {
+      vtu_input: {
+        title: 'VTU データ入力 (全ポート)',
+        icon: '📥',
+        inputs: [],
+        outputs: [],
+        defaultState: {},
+        createBody: (node, el) => {
+          const infoBox = document.createElement('div');
+          infoBox.className = 'node-preview-box';
+          if (vtuData && vtuData.fields) {
+            const count = Object.keys(vtuData.fields).length;
+            infoBox.innerHTML = `<span>節点数: ${vtuData.numPoints.toLocaleString()}</span><span>全 ${count} 物理量 (${node.outputs.length} ポート) を出力中</span>`;
+          } else {
+            infoBox.innerHTML = `<span>VTUファイルを読み込むと全ポートが展開されます</span>`;
+          }
+          el.appendChild(infoBox);
+          node.ui = { infoBox };
+        },
+        evaluate: (node) => {
+          if (!vtuData || !vtuData.fields) {
+            node.outputsData = {};
+            return;
+          }
+          const n = vtuData.numPoints;
+          node.outputsData = {};
+
+          node.outputs.forEach(out => {
+            const lastIdx = out.id.lastIndexOf('__');
+            if (lastIdx < 0) return;
+            const fieldName = out.id.substring(0, lastIdx);
+            const comp = out.id.substring(lastIdx + 2);
+            const f = vtuData.fields[fieldName];
+            if (!f) return;
+
+            const res = new Float64Array(n);
+            if (comp === 'mag') {
+              if (f.numComp >= 3) {
+                for (let i = 0; i < n; i++) {
+                  res[i] = Math.hypot(f.data[i * f.numComp], f.data[i * f.numComp + 1], f.data[i * f.numComp + 2]);
+                }
+              } else {
+                for (let i = 0; i < n; i++) {
+                  res[i] = Math.hypot(f.data[i * f.numComp], f.data[i * f.numComp + 1]);
+                }
+              }
+            } else {
+              const cIdx = parseInt(comp) || 0;
+              if (f.numComp === 1) {
+                res.set(f.data);
+              } else {
+                for (let i = 0; i < n; i++) {
+                  res[i] = f.data[i * f.numComp + cIdx];
+                }
+              }
+            }
+            node.outputsData[out.id] = res;
+          });
+        }
+      },
+
+      coordinates: {
+        title: '節点座標 (X, Y, r)',
+        icon: '📍',
+        inputs: [],
+        outputs: [
+          { id: 'out_x', label: 'X 座標 (m)', type: 'field' },
+          { id: 'out_y', label: 'Y 座標 (m)', type: 'field' },
+          { id: 'out_r', label: '半径 r (m)', type: 'field' }
+        ],
+        defaultState: {},
+        createBody: (node, el) => {
+          const infoBox = document.createElement('div');
+          infoBox.className = 'node-preview-box';
+          infoBox.innerHTML = `<span>メッシュ位置を出力</span>`;
+          el.appendChild(infoBox);
+          node.ui = { infoBox };
+        },
+        evaluate: (node) => {
+          if (!vtuData) {
+            node.outputsData = { out_x: null, out_y: null, out_r: null };
+            return;
+          }
+          const n = vtuData.numPoints;
+          const arrX = new Float64Array(n);
+          const arrY = new Float64Array(n);
+          const arrR = new Float64Array(n);
+          for (let i = 0; i < n; i++) {
+            const x = vtuData.points[i * 3];
+            const y = vtuData.points[i * 3 + 1];
+            arrX[i] = x;
+            arrY[i] = y;
+            arrR[i] = Math.hypot(x, y);
+          }
+          node.outputsData = { out_x: arrX, out_y: arrY, out_r: arrR };
+        }
+      },
+
+      constant: {
+        title: 'スカラー / 定数',
+        icon: '🔢',
+        inputs: [],
+        outputs: [
+          { id: 'out_val', label: 'Value (定数)', type: 'scalar' }
+        ],
+        defaultState: { value: 1.0 },
+        createBody: (node, el) => {
+          const numInput = document.createElement('input');
+          numInput.type = 'number';
+          numInput.step = 'any';
+          numInput.value = node.state.value;
+          numInput.style.width = '100%';
+          numInput.addEventListener('input', (e) => {
+            node.state.value = parseFloat(e.target.value) || 0;
+            executeGraph();
+          });
+
+          // Preset Buttons
+          const btnGroup = document.createElement('div');
+          btnGroup.style.display = 'flex';
+          btnGroup.style.gap = '4px';
+          btnGroup.style.flexWrap = 'wrap';
+
+          const presets = [
+            { label: 'μ₀', val: 1.25663706e-6 },
+            { label: '1e3', val: 1000 },
+            { label: '1e-3', val: 0.001 },
+            { label: '2π', val: 2 * Math.PI },
+            { label: '1.0', val: 1.0 }
+          ];
+
+          presets.forEach(p => {
+            const b = document.createElement('button');
+            b.className = 'btn btn-secondary';
+            b.style.padding = '2px 5px';
+            b.style.fontSize = '10px';
+            b.textContent = p.label;
+            b.addEventListener('click', () => {
+              node.state.value = p.val;
+              numInput.value = p.val;
+              executeGraph();
+            });
+            btnGroup.appendChild(b);
+          });
+
+          el.appendChild(createRow('値:', numInput));
+          el.appendChild(btnGroup);
+        },
+        evaluate: (node) => {
+          node.outputsData = { out_val: node.state.value };
+        }
+      },
+
+      time_input: {
+        title: '時間 / タイマー (Time)',
+        icon: '⏱️',
+        inputs: [],
+        outputs: [
+          { id: 'out_t', label: 't (経過時間 [s])', type: 'scalar' },
+          { id: 'out_sin', label: 'sin(2πft)', type: 'scalar' },
+          { id: 'out_cos', label: 'cos(2πft)', type: 'scalar' }
+        ],
+        defaultState: {
+          elapsed: 0.0,
+          running: true,
+          speed: 1.0,
+          freq: 1.0,
+          autoReset: true
+        },
+        createBody: (node, el) => {
+          // 1. Digital Time Readout Box
+          const displayBox = document.createElement('div');
+          displayBox.className = 'node-preview-box';
+          displayBox.style.textAlign = 'center';
+          displayBox.style.padding = '8px 6px';
+          displayBox.style.background = 'rgba(2, 6, 23, 0.85)';
+          displayBox.style.border = '1px solid rgba(56, 189, 248, 0.35)';
+
+          const timeValText = document.createElement('div');
+          timeValText.style.fontSize = '20px';
+          timeValText.style.fontWeight = '800';
+          timeValText.style.fontFamily = 'Consolas, Monaco, "Courier New", monospace';
+          timeValText.style.color = '#38bdf8';
+          timeValText.style.letterSpacing = '0.5px';
+          timeValText.textContent = `t = ${(node.state.elapsed || 0).toFixed(3)} s`;
+
+          const trigText = document.createElement('div');
+          trigText.style.fontSize = '10px';
+          trigText.style.color = '#94a3b8';
+          trigText.style.fontFamily = 'Consolas, Monaco, monospace';
+          trigText.style.marginTop = '2px';
+
+          const updateTrigDisplay = () => {
+            const t = node.state.elapsed || 0;
+            const f = node.state.freq !== undefined ? node.state.freq : 1.0;
+            const omega = 2 * Math.PI * f;
+            const sVal = Math.sin(omega * t);
+            const cVal = Math.cos(omega * t);
+            const sSign = sVal >= 0 ? '+' : '';
+            const cSign = cVal >= 0 ? '+' : '';
+            trigText.textContent = `sin: ${sSign}${sVal.toFixed(3)} | cos: ${cSign}${cVal.toFixed(3)}`;
+          };
+          updateTrigDisplay();
+
+          displayBox.appendChild(timeValText);
+          displayBox.appendChild(trigText);
+
+          // 2. Play/Pause and Reset Buttons
+          const btnRow = document.createElement('div');
+          btnRow.style.display = 'flex';
+          btnRow.style.gap = '6px';
+          btnRow.style.marginTop = '4px';
+
+          const btnPlay = document.createElement('button');
+          btnPlay.className = 'btn btn-secondary';
+          btnPlay.style.flex = '1';
+          btnPlay.style.padding = '4px 6px';
+          btnPlay.style.fontSize = '11px';
+          btnPlay.style.justifyContent = 'center';
+          btnPlay.innerHTML = node.state.running ? '⏸ 一時停止' : '▶ 再生';
+          btnPlay.addEventListener('click', () => {
+            node.state.running = !node.state.running;
+            btnPlay.innerHTML = node.state.running ? '⏸ 一時停止' : '▶ 再生';
+            if (node.state.running) {
+              lastAnimTime = performance.now();
+            } else {
+              executeGraph();
+            }
+          });
+
+          const btnReset = document.createElement('button');
+          btnReset.className = 'btn btn-secondary';
+          btnReset.style.flex = '1';
+          btnReset.style.padding = '4px 6px';
+          btnReset.style.fontSize = '11px';
+          btnReset.style.justifyContent = 'center';
+          btnReset.title = '経過時間を0秒にリセット';
+          btnReset.innerHTML = '🔄 リセット';
+          btnReset.addEventListener('click', () => {
+            resetAllTimeNodes('manual_reset');
+            timeValText.textContent = `t = 0.000 s`;
+            updateTrigDisplay();
+            if (manualInput) manualInput.value = '0.000';
+            executeGraph();
+          });
+
+          btnRow.appendChild(btnPlay);
+          btnRow.appendChild(btnReset);
+
+          // 3. Manual Time & Speed row
+          const manualInput = document.createElement('input');
+          manualInput.type = 'number';
+          manualInput.step = '0.01';
+          manualInput.min = '0';
+          manualInput.value = (node.state.elapsed || 0).toFixed(3);
+          manualInput.style.width = '75px';
+          manualInput.addEventListener('input', (e) => {
+            node.state.elapsed = Math.max(0, parseFloat(e.target.value) || 0);
+            timeValText.textContent = `t = ${node.state.elapsed.toFixed(3)} s`;
+            updateTrigDisplay();
+            executeGraph();
+          });
+
+          const speedSelect = document.createElement('select');
+          speedSelect.style.width = '75px';
+          [0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0].forEach(spd => {
+            const opt = document.createElement('option');
+            opt.value = spd;
+            opt.textContent = `${spd}x`;
+            if (Math.abs(spd - (node.state.speed || 1.0)) < 0.01) opt.selected = true;
+            speedSelect.appendChild(opt);
+          });
+          speedSelect.addEventListener('change', (e) => {
+            node.state.speed = parseFloat(e.target.value) || 1.0;
+          });
+
+          // 4. Frequency f (Hz) row
+          const freqInput = document.createElement('input');
+          freqInput.type = 'number';
+          freqInput.step = 'any';
+          freqInput.min = '0.001';
+          freqInput.value = node.state.freq !== undefined ? node.state.freq : 1.0;
+          freqInput.style.width = '75px';
+          freqInput.addEventListener('input', (e) => {
+            node.state.freq = Math.max(0.001, parseFloat(e.target.value) || 1.0);
+            updateTrigDisplay();
+            executeGraph();
+          });
+
+          // 5. Auto Reset toggle
+          const chkAuto = document.createElement('input');
+          chkAuto.type = 'checkbox';
+          chkAuto.checked = node.state.autoReset !== false;
+          chkAuto.addEventListener('change', (e) => {
+            node.state.autoReset = e.target.checked;
+          });
+
+          const autoLabel = document.createElement('label');
+          autoLabel.style.display = 'flex';
+          autoLabel.style.alignItems = 'center';
+          autoLabel.style.gap = '5px';
+          autoLabel.style.fontSize = '10.5px';
+          autoLabel.style.color = '#94a3b8';
+          autoLabel.style.cursor = 'pointer';
+          autoLabel.style.marginTop = '4px';
+          autoLabel.appendChild(chkAuto);
+          autoLabel.appendChild(document.createTextNode('配線・ファイル変更時にリセット'));
+
+          // Assembly
+          el.appendChild(displayBox);
+          el.appendChild(btnRow);
+          el.appendChild(createRow('指定時間 (s):', manualInput));
+          el.appendChild(createRow('再生速度:', speedSelect));
+          el.appendChild(createRow('周波数 f (Hz):', freqInput));
+          el.appendChild(autoLabel);
+
+          // Update display callback for animation loop
+          node.ui = {
+            updateDisplay: () => {
+              const t = node.state.elapsed || 0;
+              timeValText.textContent = `t = ${t.toFixed(3)} s`;
+              updateTrigDisplay();
+              if (document.activeElement !== manualInput) {
+                manualInput.value = t.toFixed(3);
+              }
+            }
+          };
+        },
+        evaluate: (node) => {
+          const t = typeof node.state.elapsed === 'number' ? node.state.elapsed : 0;
+          const f = typeof node.state.freq === 'number' ? node.state.freq : 1.0;
+          const omega = 2 * Math.PI * f;
+          node.outputsData = {
+            out_t: t,
+            out_sin: Math.sin(omega * t),
+            out_cos: Math.cos(omega * t)
+          };
+        }
+      },
+
+      binary_math: {
+        title: '2項演算 (A op B)',
+        icon: '➕',
+        inputs: [
+          { id: 'in_a', label: 'A (入力)', type: 'any' },
+          { id: 'in_b', label: 'B (入力)', type: 'any' }
+        ],
+        outputs: [
+          { id: 'out_res', label: 'Result (結果)', type: 'field' }
+        ],
+        defaultState: { op: 'add' },
+        createBody: (node, el) => {
+          const opSelect = document.createElement('select');
+          opSelect.style.width = '100%';
+          opSelect.innerHTML = `
+            <option value="add">A + B (加算)</option>
+            <option value="sub">A - B (減算)</option>
+            <option value="mul">A × B (乗算)</option>
+            <option value="div">A ÷ B (除算)</option>
+            <option value="max">Max(A, B)</option>
+            <option value="min">Min(A, B)</option>
+            <option value="hypot">√(A² + B²) (合成)</option>
+            <option value="atan2_deg">atan2(A, B) [deg]</option>
+          `;
+          opSelect.value = node.state.op;
+          opSelect.addEventListener('change', (e) => {
+            node.state.op = e.target.value;
+            executeGraph();
+          });
+
+          el.appendChild(createRow('演算子:', opSelect));
+        },
+        evaluate: (node) => {
+          const a = node.inputsData.in_a;
+          const b = node.inputsData.in_b;
+          if (a === undefined || b === undefined || a === null || b === null) {
+            node.outputsData = { out_res: null };
+            return;
+          }
+
+          const isArrayA = a instanceof Float64Array || a instanceof Float32Array;
+          const isArrayB = b instanceof Float64Array || b instanceof Float32Array;
+
+          if (!isArrayA && !isArrayB) {
+            // Scalar op Scalar
+            node.outputsData = { out_res: computeScalarOp(a, b, node.state.op) };
+            return;
+          }
+
+          const len = isArrayA ? a.length : b.length;
+          const res = new Float64Array(len);
+          const op = node.state.op;
+
+          for (let i = 0; i < len; i++) {
+            const va = isArrayA ? a[i] : a;
+            const vb = isArrayB ? b[i] : b;
+            res[i] = computeScalarOp(va, vb, op);
+          }
+          node.outputsData = { out_res: res };
+        }
+      },
+
+      unary_math: {
+        title: '関数 (Unary Function)',
+        icon: '⚡',
+        inputs: [
+          { id: 'in_x', label: 'In (入力)', type: 'any' }
+        ],
+        outputs: [
+          { id: 'out_res', label: 'Result (結果)', type: 'field' }
+        ],
+        defaultState: { func: 'abs' },
+        createBody: (node, el) => {
+          const funcSelect = document.createElement('select');
+          funcSelect.style.width = '100%';
+          funcSelect.innerHTML = `
+            <option value="abs">|x| (絶対値)</option>
+            <option value="sqr">x² (2乗)</option>
+            <option value="sqrt">√x (平方根)</option>
+            <option value="inv">1 / x (逆数)</option>
+            <option value="neg">-x (反転)</option>
+            <option value="log10">log10(x)</option>
+            <option value="db">20 log10(x) [dB]</option>
+            <option value="sin">sin(x)</option>
+            <option value="cos">cos(x)</option>
+          `;
+          funcSelect.value = node.state.func;
+          funcSelect.addEventListener('change', (e) => {
+            node.state.func = e.target.value;
+            executeGraph();
+          });
+          el.appendChild(createRow('関数:', funcSelect));
+        },
+        evaluate: (node) => {
+          const x = node.inputsData.in_x;
+          if (x === undefined || x === null) {
+            node.outputsData = { out_res: null };
+            return;
+          }
+          const func = node.state.func;
+          if (!(x instanceof Float64Array) && !(x instanceof Float32Array)) {
+            node.outputsData = { out_res: computeUnaryOp(x, func) };
+            return;
+          }
+          const res = new Float64Array(x.length);
+          for (let i = 0; i < x.length; i++) {
+            res[i] = computeUnaryOp(x[i], func);
+          }
+          node.outputsData = { out_res: res };
+        }
+      },
+
+      expression: {
+        title: '自由数式 (Expression)',
+        icon: '📐',
+        inputs: [
+          { id: 'in_a', label: 'A', type: 'any' },
+          { id: 'in_b', label: 'B', type: 'any' },
+          { id: 'in_c', label: 'C', type: 'any' }
+        ],
+        outputs: [
+          { id: 'out_res', label: 'Result', type: 'field' }
+        ],
+        defaultState: { expr: '0.5 * A * A / 1.256637e-6' },
+        createBody: (node, el) => {
+          const exprInput = document.createElement('input');
+          exprInput.type = 'text';
+          exprInput.value = node.state.expr;
+          exprInput.style.width = '100%';
+          exprInput.title = 'JavaScript数式 (例: 0.5*A*A/1.2566e-6, Math.hypot(A, B), A - B)';
+          exprInput.addEventListener('change', (e) => {
+            node.state.expr = e.target.value;
+            executeGraph();
+          });
+          el.appendChild(createRow('数式:', exprInput));
+        },
+        evaluate: (node) => {
+          const a = node.inputsData.in_a;
+          const b = node.inputsData.in_b;
+          const c = node.inputsData.in_c;
+
+          if (!a && !b && !c) {
+            node.outputsData = { out_res: null };
+            return;
+          }
+
+          let len = 1;
+          [a, b, c].forEach(v => {
+            if (v instanceof Float64Array || v instanceof Float32Array) len = Math.max(len, v.length);
+          });
+
+          const isArrA = a instanceof Float64Array || a instanceof Float32Array;
+          const isArrB = b instanceof Float64Array || b instanceof Float32Array;
+          const isArrC = c instanceof Float64Array || c instanceof Float32Array;
+
+          try {
+            const fn = new Function('A', 'B', 'C', 'Math', `return (${node.state.expr});`);
+            const res = new Float64Array(len);
+            for (let i = 0; i < len; i++) {
+              const va = isArrA ? a[i] : (a !== undefined ? a : 0);
+              const vb = isArrB ? b[i] : (b !== undefined ? b : 0);
+              const vc = isArrC ? c[i] : (c !== undefined ? c : 0);
+              res[i] = fn(va, vb, vc, Math);
+            }
+            node.outputsData = { out_res: res };
+          } catch (err) {
+            console.warn('Expression evaluation error:', err);
+            node.outputsData = { out_res: null };
+          }
+        }
+      },
+
+      threshold_filter: {
+        title: '閾値・マスクフィルター',
+        icon: '✂️',
+        inputs: [
+          { id: 'in_x', label: 'In (入力)', type: 'field' }
+        ],
+        outputs: [
+          { id: 'out_res', label: 'Filtered', type: 'field' }
+        ],
+        defaultState: { mode: 'clamp', minVal: -1.0, maxVal: 1.0 },
+        createBody: (node, el) => {
+          const modeSelect = document.createElement('select');
+          modeSelect.style.width = '100%';
+          modeSelect.innerHTML = `
+            <option value="clamp">Clamp (範囲内に制限)</option>
+            <option value="mask_zero">Mask (範囲外を0にする)</option>
+            <option value="step">Step (閾値以上を1, 未満を0)</option>
+          `;
+          modeSelect.value = node.state.mode;
+          modeSelect.addEventListener('change', (e) => {
+            node.state.mode = e.target.value;
+            executeGraph();
+          });
+
+          const minInp = document.createElement('input');
+          minInp.type = 'number';
+          minInp.step = 'any';
+          minInp.value = node.state.minVal;
+          minInp.style.width = '70px';
+          minInp.addEventListener('change', (e) => {
+            node.state.minVal = parseFloat(e.target.value) || 0;
+            executeGraph();
+          });
+
+          const maxInp = document.createElement('input');
+          maxInp.type = 'number';
+          maxInp.step = 'any';
+          maxInp.value = node.state.maxVal;
+          maxInp.style.width = '70px';
+          maxInp.addEventListener('change', (e) => {
+            node.state.maxVal = parseFloat(e.target.value) || 0;
+            executeGraph();
+          });
+
+          const rangeRow = document.createElement('div');
+          rangeRow.style.display = 'flex';
+          rangeRow.style.alignItems = 'center';
+          rangeRow.style.gap = '4px';
+          rangeRow.appendChild(minInp);
+          rangeRow.appendChild(document.createTextNode('〜'));
+          rangeRow.appendChild(maxInp);
+
+          el.appendChild(createRow('モード:', modeSelect));
+          el.appendChild(createRow('範囲:', rangeRow));
+        },
+        evaluate: (node) => {
+          const x = node.inputsData.in_x;
+          if (!x || !(x instanceof Float64Array || x instanceof Float32Array)) {
+            node.outputsData = { out_res: null };
+            return;
+          }
+          const res = new Float64Array(x.length);
+          const min = node.state.minVal;
+          const max = node.state.maxVal;
+          const mode = node.state.mode;
+
+          for (let i = 0; i < x.length; i++) {
+            const v = x[i];
+            if (mode === 'clamp') {
+              res[i] = Math.max(min, Math.min(max, v));
+            } else if (mode === 'mask_zero') {
+              res[i] = (v >= min && v <= max) ? v : 0;
+            } else if (mode === 'step') {
+              res[i] = v >= max ? 1 : 0;
+            }
+          }
+          node.outputsData = { out_res: res };
+        }
+      },
+
+      output_contour: {
+        title: '3D コンタ表示 (出力)',
+        icon: '🎨',
+        inputs: [
+          { id: 'in_field', label: 'Field In', type: 'field' }
+        ],
+        outputs: [],
+        defaultState: {
+          cmap: 'bkr',
+          symmetric: true,
+          rangeMode: 'auto',
+          fixedMin: -1.0,
+          fixedMax: 1.0,
+          peakMin: Infinity,
+          peakMax: -Infinity,
+          peakAbs: 0
+        },
+        createBody: (node, el) => {
+          if (node.el) node.el.classList.add('contour-card');
+
+          const cmapSelect = document.createElement('select');
+          cmapSelect.style.width = '100%';
+          cmapSelect.innerHTML = `
+            <option value="bkr" selected>青-黒-赤 (±A標準)</option>
+            <option value="turbo">Turbo</option>
+            <option value="viridis">Viridis</option>
+            <option value="jet">Jet</option>
+            <option value="coolwarm">CoolWarm</option>
+            <option value="plasma">Plasma</option>
+            <option value="grayscale">Grayscale</option>
+          `;
+          cmapSelect.value = node.state.cmap || 'bkr';
+          cmapSelect.addEventListener('change', (e) => {
+            node.state.cmap = e.target.value;
+            executeGraph();
+          });
+
+          // Range Mode Select
+          const modeSelect = document.createElement('select');
+          modeSelect.style.width = '100%';
+          modeSelect.innerHTML = `
+            <option value="auto">自動スケール (Auto)</option>
+            <option value="fixed">固定値 (Fixed [Min, Max])</option>
+            <option value="peak_hold">ピークホールド (Peak Hold)</option>
+          `;
+          modeSelect.value = node.state.rangeMode || 'auto';
+
+          // Fixed / Peak Hold Controls Container
+          const ctrlContainer = document.createElement('div');
+          ctrlContainer.style.display = 'flex';
+          ctrlContainer.style.flexDirection = 'column';
+          ctrlContainer.style.gap = '4px';
+
+          // Fixed row: [ Min ] [ Max ] [ 📋現在値 ]
+          const fixedRow = document.createElement('div');
+          fixedRow.className = 'node-row';
+          fixedRow.style.gap = '4px';
+
+          const inpMin = document.createElement('input');
+          inpMin.type = 'number';
+          inpMin.step = 'any';
+          inpMin.value = node.state.fixedMin !== undefined ? node.state.fixedMin : -1.0;
+          inpMin.placeholder = 'Min';
+          inpMin.style.minWidth = '0';
+          inpMin.style.width = '0';
+          inpMin.style.flex = '1';
+          inpMin.style.padding = '3px 4px';
+          inpMin.style.fontSize = '11px';
+          inpMin.title = '固定最小値';
+
+          const inpMax = document.createElement('input');
+          inpMax.type = 'number';
+          inpMax.step = 'any';
+          inpMax.value = node.state.fixedMax !== undefined ? node.state.fixedMax : 1.0;
+          inpMax.placeholder = 'Max';
+          inpMax.style.minWidth = '0';
+          inpMax.style.width = '0';
+          inpMax.style.flex = '1';
+          inpMax.style.padding = '3px 4px';
+          inpMax.style.fontSize = '11px';
+          inpMax.title = '固定最大値';
+
+          const btnGrabCur = document.createElement('button');
+          btnGrabCur.className = 'btn btn-secondary';
+          btnGrabCur.style.padding = '2px 5px';
+          btnGrabCur.style.fontSize = '10px';
+          btnGrabCur.style.flexShrink = '0';
+          btnGrabCur.title = '現在のフレームの最小・最大値を固定値に入力';
+          btnGrabCur.innerHTML = '📋現在値';
+
+          fixedRow.appendChild(inpMin);
+          fixedRow.appendChild(inpMax);
+          fixedRow.appendChild(btnGrabCur);
+
+          // Peak hold row: Status + Reset button
+          const peakRow = document.createElement('div');
+          peakRow.style.display = 'flex';
+          peakRow.style.alignItems = 'center';
+          peakRow.style.justifyContent = 'space-between';
+          peakRow.style.gap = '6px';
+
+          const peakInfo = document.createElement('span');
+          peakInfo.style.fontSize = '10px';
+          peakInfo.style.color = '#38bdf8';
+          peakInfo.style.fontFamily = 'monospace';
+          peakInfo.textContent = 'ピーク保持中';
+
+          const btnResetPeak = document.createElement('button');
+          btnResetPeak.className = 'btn btn-secondary';
+          btnResetPeak.style.padding = '2px 6px';
+          btnResetPeak.style.fontSize = '10px';
+          btnResetPeak.title = '保持されているピーク値を現在の値にリセット';
+          btnResetPeak.innerHTML = '🔄 ホールド解除';
+
+          peakRow.appendChild(peakInfo);
+          peakRow.appendChild(btnResetPeak);
+
+          const updateVisibility = () => {
+            const m = node.state.rangeMode;
+            fixedRow.style.display = m === 'fixed' ? 'flex' : 'none';
+            peakRow.style.display = m === 'peak_hold' ? 'flex' : 'none';
+          };
+          updateVisibility();
+
+          modeSelect.addEventListener('change', (e) => {
+            node.state.rangeMode = e.target.value;
+            if (node.state.rangeMode === 'peak_hold') {
+              node.state.peakMin = Infinity;
+              node.state.peakMax = -Infinity;
+              node.state.peakAbs = 0;
+            }
+            updateVisibility();
+            executeGraph();
+          });
+
+          inpMin.addEventListener('input', () => {
+            node.state.fixedMin = parseFloat(inpMin.value) || 0;
+            executeGraph();
+          });
+          inpMax.addEventListener('input', () => {
+            node.state.fixedMax = parseFloat(inpMax.value) || 0;
+            executeGraph();
+          });
+
+          btnGrabCur.addEventListener('click', () => {
+            if (node.lastStats) {
+              node.state.fixedMin = parseFloat(node.lastStats.curMin.toPrecision(4));
+              node.state.fixedMax = parseFloat(node.lastStats.curMax.toPrecision(4));
+              inpMin.value = node.state.fixedMin;
+              inpMax.value = node.state.fixedMax;
+              executeGraph();
+            }
+          });
+
+          btnResetPeak.addEventListener('click', () => {
+            node.state.peakMin = Infinity;
+            node.state.peakMax = -Infinity;
+            node.state.peakAbs = 0;
+            executeGraph();
+          });
+
+          ctrlContainer.appendChild(fixedRow);
+          ctrlContainer.appendChild(peakRow);
+
+          const chkSym = document.createElement('input');
+          chkSym.type = 'checkbox';
+          chkSym.checked = node.state.symmetric;
+          chkSym.addEventListener('change', (e) => {
+            node.state.symmetric = e.target.checked;
+            executeGraph();
+          });
+
+          const symLabel = document.createElement('label');
+          symLabel.style.display = 'flex';
+          symLabel.style.alignItems = 'center';
+          symLabel.style.gap = '6px';
+          symLabel.appendChild(chkSym);
+          symLabel.appendChild(document.createTextNode('±A 対称スケール'));
+
+          const statsBox = document.createElement('div');
+          statsBox.className = 'node-preview-box';
+          statsBox.innerHTML = `<span>A = max(|v|): -</span><span>Min / Max: -</span>`;
+
+          el.appendChild(createRow('カラー:', cmapSelect));
+          el.appendChild(createRow('範囲:', modeSelect));
+          el.appendChild(ctrlContainer);
+          el.appendChild(symLabel);
+          el.appendChild(statsBox);
+
+          node.ui = {
+            statsBox,
+            cmapSelect,
+            modeSelect,
+            inpMin,
+            inpMax,
+            peakInfo,
+            updateDisplay: () => {
+              if (node.state.rangeMode === 'peak_hold' && isFinite(node.state.peakMin)) {
+                peakInfo.textContent = `[${node.state.peakMin.toExponential(1)}, ${node.state.peakMax.toExponential(1)}]`;
+              }
+            }
+          };
+        },
+        evaluate: (node) => {
+          update3DContourMesh(node);
+        }
+      },
+
+      output_vectors: {
+        title: '2D ベクトル矢印 (出力)',
+        icon: '↗️',
+        inputs: [
+          { id: 'in_vx', label: 'Vx (X成分)', type: 'field' },
+          { id: 'in_vy', label: 'Vy (Y成分)', type: 'field' }
+        ],
+        outputs: [],
+        defaultState: { scale: 1.0, step: 2, color: '#38bdf8', shape: 'arrow' },
+        createBody: (node, el) => {
+          // Shape Select (線種: 矢印, 三角矢印, 直線)
+          const shapeSelect = document.createElement('select');
+          shapeSelect.style.width = '100%';
+          shapeSelect.innerHTML = `
+            <option value="arrow">矢印</option>
+            <option value="triangle">三角矢印</option>
+            <option value="line">直線</option>
+          `;
+          shapeSelect.value = node.state.shape || 'arrow';
+          shapeSelect.addEventListener('change', (e) => {
+            node.state.shape = e.target.value;
+            executeGraph();
+          });
+
+          // Monochromatic Color Picker
+          const colorInput = document.createElement('input');
+          colorInput.type = 'color';
+          colorInput.value = node.state.color || '#38bdf8';
+          colorInput.style.width = '42px';
+          colorInput.style.height = '24px';
+          colorInput.style.padding = '0 2px';
+          colorInput.style.cursor = 'pointer';
+          colorInput.style.border = '1px solid #475569';
+          colorInput.style.borderRadius = '4px';
+
+          const colorText = document.createElement('span');
+          colorText.style.fontFamily = 'monospace';
+          colorText.style.fontSize = '11px';
+          colorText.style.color = '#cbd5e1';
+          colorText.textContent = colorInput.value.toUpperCase();
+
+          colorInput.addEventListener('input', (e) => {
+            node.state.color = e.target.value;
+            colorText.textContent = e.target.value.toUpperCase();
+            executeGraph();
+          });
+
+          const colorRow = document.createElement('div');
+          colorRow.style.display = 'flex';
+          colorRow.style.alignItems = 'center';
+          colorRow.style.gap = '8px';
+          colorRow.appendChild(colorInput);
+          colorRow.appendChild(colorText);
+
+          // Exponential Scale Slider (10^x: x from -2.0 to 1.0 -> scale from 0.01 to 10.0)
+          const scaleSlider = document.createElement('input');
+          scaleSlider.type = 'range';
+          scaleSlider.min = '-2.0';
+          scaleSlider.max = '1.0';
+          scaleSlider.step = '0.05';
+          scaleSlider.style.flex = '1';
+
+          const currentScale = typeof node.state.scale === 'number' && node.state.scale > 0 ? node.state.scale : 1.0;
+          const currentExp = Math.log10(currentScale);
+          scaleSlider.value = Math.max(-2.0, Math.min(1.0, currentExp)).toFixed(2);
+
+          const scaleValLabel = document.createElement('span');
+          scaleValLabel.style.fontFamily = 'monospace';
+          scaleValLabel.style.fontSize = '11px';
+          scaleValLabel.style.color = '#cbd5e1';
+          scaleValLabel.style.minWidth = '46px';
+          scaleValLabel.style.textAlign = 'right';
+
+          const formatScaleText = (sc) => {
+            if (sc >= 10) return `×${sc.toFixed(1)}`;
+            if (sc >= 0.1) return `×${sc.toFixed(2)}`;
+            return `×${sc.toFixed(3)}`;
+          };
+          scaleValLabel.textContent = formatScaleText(currentScale);
+
+          scaleSlider.addEventListener('input', (e) => {
+            const exp = parseFloat(e.target.value);
+            const val = Math.pow(10, exp);
+            node.state.scale = val;
+            scaleValLabel.textContent = formatScaleText(val);
+            executeGraph();
+          });
+
+          const scaleRow = document.createElement('div');
+          scaleRow.style.display = 'flex';
+          scaleRow.style.alignItems = 'center';
+          scaleRow.style.gap = '8px';
+          scaleRow.style.width = '100%';
+          scaleRow.appendChild(scaleSlider);
+          scaleRow.appendChild(scaleValLabel);
+
+          // Step (Density) Select
+          const stepSelect = document.createElement('select');
+          stepSelect.style.width = '100%';
+          stepSelect.innerHTML = `
+            <option value="1">100% 全節点</option>
+            <option value="2">50% 表示</option>
+            <option value="4">25% 表示</option>
+            <option value="8">12.5% 表示</option>
+          `;
+          stepSelect.value = node.state.step;
+          stepSelect.addEventListener('change', (e) => {
+            node.state.step = parseInt(e.target.value);
+            executeGraph();
+          });
+
+          el.appendChild(createRow('線種:', shapeSelect));
+          el.appendChild(createRow('色 (単色):', colorRow));
+          el.appendChild(createRow('倍率 (10ˣ):', scaleRow));
+          el.appendChild(createRow('密度:', stepSelect));
+        },
+        evaluate: (node) => {
+          const vx = node.inputsData.in_vx;
+          const vy = node.inputsData.in_vy;
+          update3DVectorMesh(vx, vy, node.state.scale, node.state.step, node.state.color, node.state.shape);
+        }
+      },
+
+      output_line_probe: {
+        title: '直線プロファイル (Line Probe)',
+        icon: '📏',
+        inputs: [
+          { id: 'in_data', label: 'Data In', type: 'field' }
+        ],
+        outputs: [],
+        defaultState: {
+          p1x: 0,
+          p1y: 0,
+          p2x: 1,
+          p2y: 0,
+          samples: 100,
+          axisMode: 'dist',
+          yRangeMode: 'auto',
+          yFixedMin: -1.0,
+          yFixedMax: 1.0,
+          peakMin: Infinity,
+          peakMax: -Infinity
+        },
+        createBody: (node, el) => {
+          if (node.el) node.el.classList.add('probe-card');
+
+          // Row 1: Start Point P1
+          const r1 = document.createElement('div');
+          r1.className = 'node-row';
+          r1.style.gap = '4px';
+          const l1 = document.createElement('span');
+          l1.style.color = '#38bdf8';
+          l1.style.fontWeight = 'bold';
+          l1.textContent = '始点 P1:';
+          l1.style.fontSize = '11px';
+          l1.style.width = '46px';
+          l1.style.flexShrink = '0';
+
+          const lblX1 = document.createElement('span');
+          lblX1.style.color = '#94a3b8';
+          lblX1.style.fontSize = '10px';
+          lblX1.textContent = 'X';
+          lblX1.style.flexShrink = '0';
+
+          const inpP1X = document.createElement('input');
+          inpP1X.type = 'number';
+          inpP1X.step = 'any';
+          inpP1X.value = node.state.p1x;
+          inpP1X.placeholder = 'X';
+          inpP1X.style.minWidth = '0';
+          inpP1X.style.width = '0';
+          inpP1X.style.flex = '1';
+          inpP1X.style.padding = '3px 4px';
+          inpP1X.style.fontSize = '11px';
+          inpP1X.title = '始点 X 座標 [m]';
+
+          const lblY1 = document.createElement('span');
+          lblY1.style.color = '#94a3b8';
+          lblY1.style.fontSize = '10px';
+          lblY1.textContent = 'Y';
+          lblY1.style.flexShrink = '0';
+
+          const inpP1Y = document.createElement('input');
+          inpP1Y.type = 'number';
+          inpP1Y.step = 'any';
+          inpP1Y.value = node.state.p1y;
+          inpP1Y.placeholder = 'Y';
+          inpP1Y.style.minWidth = '0';
+          inpP1Y.style.width = '0';
+          inpP1Y.style.flex = '1';
+          inpP1Y.style.padding = '3px 4px';
+          inpP1Y.style.fontSize = '11px';
+          inpP1Y.title = '始点 Y 座標 [m]';
+
+          r1.appendChild(l1);
+          r1.appendChild(lblX1);
+          r1.appendChild(inpP1X);
+          r1.appendChild(lblY1);
+          r1.appendChild(inpP1Y);
+
+          // Row 2: End Point P2
+          const r2 = document.createElement('div');
+          r2.className = 'node-row';
+          r2.style.gap = '4px';
+          const l2 = document.createElement('span');
+          l2.style.color = '#f43f5e';
+          l2.style.fontWeight = 'bold';
+          l2.textContent = '終点 P2:';
+          l2.style.fontSize = '11px';
+          l2.style.width = '46px';
+          l2.style.flexShrink = '0';
+
+          const lblX2 = document.createElement('span');
+          lblX2.style.color = '#94a3b8';
+          lblX2.style.fontSize = '10px';
+          lblX2.textContent = 'X';
+          lblX2.style.flexShrink = '0';
+
+          const inpP2X = document.createElement('input');
+          inpP2X.type = 'number';
+          inpP2X.step = 'any';
+          inpP2X.value = node.state.p2x;
+          inpP2X.placeholder = 'X';
+          inpP2X.style.minWidth = '0';
+          inpP2X.style.width = '0';
+          inpP2X.style.flex = '1';
+          inpP2X.style.padding = '3px 4px';
+          inpP2X.style.fontSize = '11px';
+          inpP2X.title = '終点 X 座標 [m]';
+
+          const lblY2 = document.createElement('span');
+          lblY2.style.color = '#94a3b8';
+          lblY2.style.fontSize = '10px';
+          lblY2.textContent = 'Y';
+          lblY2.style.flexShrink = '0';
+
+          const inpP2Y = document.createElement('input');
+          inpP2Y.type = 'number';
+          inpP2Y.step = 'any';
+          inpP2Y.value = node.state.p2y;
+          inpP2Y.placeholder = 'Y';
+          inpP2Y.style.minWidth = '0';
+          inpP2Y.style.width = '0';
+          inpP2Y.style.flex = '1';
+          inpP2Y.style.padding = '3px 4px';
+          inpP2Y.style.fontSize = '11px';
+          inpP2Y.title = '終点 Y 座標 [m]';
+
+          r2.appendChild(l2);
+          r2.appendChild(lblX2);
+          r2.appendChild(inpP2X);
+          r2.appendChild(lblY2);
+          r2.appendChild(inpP2Y);
+
+          // Row 3: Samples & X-Axis Mode
+          const r3 = document.createElement('div');
+          r3.className = 'node-row';
+          r3.style.gap = '6px';
+
+          const samplesLabel = document.createElement('span');
+          samplesLabel.textContent = '分割数:';
+          samplesLabel.style.color = '#94a3b8';
+          samplesLabel.style.fontSize = '11px';
+          samplesLabel.style.flexShrink = '0';
+
+          const inpSamples = document.createElement('input');
+          inpSamples.type = 'number';
+          inpSamples.min = '10';
+          inpSamples.max = '500';
+          inpSamples.step = '10';
+          inpSamples.value = node.state.samples || 100;
+          inpSamples.style.width = '50px';
+          inpSamples.style.flexShrink = '0';
+          inpSamples.title = '線分上のサンプリング点数 (10〜500)';
+
+          const selAxis = document.createElement('select');
+          selAxis.style.minWidth = '0';
+          selAxis.style.width = '0';
+          selAxis.style.flex = '1';
+          selAxis.style.fontSize = '10px';
+          selAxis.innerHTML = `
+            <option value="dist">横軸: 距離 s (0→L)</option>
+            <option value="x">横軸: X 座標</option>
+            <option value="y">横軸: Y 座標</option>
+          `;
+          selAxis.value = node.state.axisMode || 'dist';
+
+          r3.appendChild(samplesLabel);
+          r3.appendChild(inpSamples);
+          r3.appendChild(selAxis);
+
+          // Row 4: Y-Axis Range Mode & Fixed / Peak Hold Controls
+          const r4YRange = document.createElement('div');
+          r4YRange.className = 'node-row';
+          r4YRange.style.gap = '6px';
+
+          const yRangeLabel = document.createElement('span');
+          yRangeLabel.textContent = 'Y軸範囲:';
+          yRangeLabel.style.color = '#94a3b8';
+          yRangeLabel.style.fontSize = '11px';
+          yRangeLabel.style.flexShrink = '0';
+
+          const selYRange = document.createElement('select');
+          selYRange.style.minWidth = '0';
+          selYRange.style.width = '0';
+          selYRange.style.flex = '1';
+          selYRange.style.fontSize = '10px';
+          selYRange.innerHTML = `
+            <option value="auto">自動スケール (Auto)</option>
+            <option value="fixed">固定値 (Fixed [Ymin, Ymax])</option>
+            <option value="peak_hold">ピークホールド (Peak Hold)</option>
+          `;
+          selYRange.value = node.state.yRangeMode || 'auto';
+
+          r4YRange.appendChild(yRangeLabel);
+          r4YRange.appendChild(selYRange);
+
+          // Y Controls Container
+          const yCtrlContainer = document.createElement('div');
+          yCtrlContainer.style.display = 'flex';
+          yCtrlContainer.style.flexDirection = 'column';
+          yCtrlContainer.style.gap = '4px';
+
+          // Fixed row: Ymin [  ] Ymax [  ] [ 📋現在値 ]
+          const yFixedRow = document.createElement('div');
+          yFixedRow.className = 'node-row';
+          yFixedRow.style.gap = '4px';
+
+          const lblYMin = document.createElement('span');
+          lblYMin.style.color = '#94a3b8';
+          lblYMin.style.fontSize = '10px';
+          lblYMin.textContent = 'Min';
+          lblYMin.style.flexShrink = '0';
+
+          const inpYMin = document.createElement('input');
+          inpYMin.type = 'number';
+          inpYMin.step = 'any';
+          inpYMin.value = node.state.yFixedMin !== undefined ? node.state.yFixedMin : -1.0;
+          inpYMin.placeholder = 'Min';
+          inpYMin.style.minWidth = '0';
+          inpYMin.style.width = '0';
+          inpYMin.style.flex = '1';
+          inpYMin.style.padding = '3px 4px';
+          inpYMin.style.fontSize = '11px';
+          inpYMin.title = 'Y軸 固定最小値';
+
+          const lblYMax = document.createElement('span');
+          lblYMax.style.color = '#94a3b8';
+          lblYMax.style.fontSize = '10px';
+          lblYMax.textContent = 'Max';
+          lblYMax.style.flexShrink = '0';
+
+          const inpYMax = document.createElement('input');
+          inpYMax.type = 'number';
+          inpYMax.step = 'any';
+          inpYMax.value = node.state.yFixedMax !== undefined ? node.state.yFixedMax : 1.0;
+          inpYMax.placeholder = 'Max';
+          inpYMax.style.minWidth = '0';
+          inpYMax.style.width = '0';
+          inpYMax.style.flex = '1';
+          inpYMax.style.padding = '3px 4px';
+          inpYMax.style.fontSize = '11px';
+          inpYMax.title = 'Y軸 固定最大値';
+
+          const btnGrabCur = document.createElement('button');
+          btnGrabCur.className = 'btn btn-secondary';
+          btnGrabCur.style.padding = '2px 5px';
+          btnGrabCur.style.fontSize = '10px';
+          btnGrabCur.style.flexShrink = '0';
+          btnGrabCur.title = '現在のプロファイルの最小・最大値を固定値に入力';
+          btnGrabCur.innerHTML = '📋現在値';
+
+          yFixedRow.appendChild(lblYMin);
+          yFixedRow.appendChild(inpYMin);
+          yFixedRow.appendChild(lblYMax);
+          yFixedRow.appendChild(inpYMax);
+          yFixedRow.appendChild(btnGrabCur);
+
+          // Peak hold row: Status + Reset
+          const yPeakRow = document.createElement('div');
+          yPeakRow.style.display = 'flex';
+          yPeakRow.style.alignItems = 'center';
+          yPeakRow.style.justifyContent = 'space-between';
+          yPeakRow.style.gap = '6px';
+
+          const peakInfo = document.createElement('span');
+          peakInfo.style.fontSize = '10px';
+          peakInfo.style.color = '#38bdf8';
+          peakInfo.style.fontFamily = 'monospace';
+          peakInfo.textContent = 'ピーク保持中';
+
+          const btnResetPeak = document.createElement('button');
+          btnResetPeak.className = 'btn btn-secondary';
+          btnResetPeak.style.padding = '2px 6px';
+          btnResetPeak.style.fontSize = '10px';
+          btnResetPeak.title = '保持されているY軸ピーク値を現在の値にリセット';
+          btnResetPeak.innerHTML = '🔄 ホールド解除';
+
+          yPeakRow.appendChild(peakInfo);
+          yPeakRow.appendChild(btnResetPeak);
+
+          const updateYVisibility = () => {
+            const m = node.state.yRangeMode;
+            yFixedRow.style.display = m === 'fixed' ? 'flex' : 'none';
+            yPeakRow.style.display = m === 'peak_hold' ? 'flex' : 'none';
+          };
+          updateYVisibility();
+
+          selYRange.addEventListener('change', (e) => {
+            node.state.yRangeMode = e.target.value;
+            if (node.state.yRangeMode === 'peak_hold') {
+              node.state.peakMin = Infinity;
+              node.state.peakMax = -Infinity;
+            }
+            updateYVisibility();
+            executeGraph();
+          });
+
+          inpYMin.addEventListener('input', () => {
+            node.state.yFixedMin = parseFloat(inpYMin.value) || 0;
+            executeGraph();
+          });
+          inpYMax.addEventListener('input', () => {
+            node.state.yFixedMax = parseFloat(inpYMax.value) || 0;
+            executeGraph();
+          });
+
+          btnGrabCur.addEventListener('click', () => {
+            if (node.lastStats) {
+              node.state.yFixedMin = parseFloat(node.lastStats.curMin.toPrecision(4));
+              node.state.yFixedMax = parseFloat(node.lastStats.curMax.toPrecision(4));
+              inpYMin.value = node.state.yFixedMin;
+              inpYMax.value = node.state.yFixedMax;
+              executeGraph();
+            }
+          });
+
+          btnResetPeak.addEventListener('click', () => {
+            node.state.peakMin = Infinity;
+            node.state.peakMax = -Infinity;
+            executeGraph();
+          });
+
+          yCtrlContainer.appendChild(yFixedRow);
+          yCtrlContainer.appendChild(yPeakRow);
+
+          // Row 5: Action Buttons (Preset / 3D Pick)
+          const r5 = document.createElement('div');
+          r5.style.display = 'flex';
+          r5.style.gap = '4px';
+          r5.style.marginTop = '2px';
+
+          const btnPick = document.createElement('button');
+          btnPick.className = 'btn btn-secondary';
+          btnPick.style.flex = '1';
+          btnPick.style.padding = '3px 4px';
+          btnPick.style.fontSize = '10px';
+          btnPick.style.justifyContent = 'center';
+          btnPick.title = '3D画面をクリックして始点・終点を指定';
+          btnPick.innerHTML = '🎯 3D画面で指定';
+
+          const btnFitX = document.createElement('button');
+          btnFitX.className = 'btn btn-secondary';
+          btnFitX.style.padding = '3px 5px';
+          btnFitX.style.fontSize = '10px';
+          btnFitX.title = 'X軸中央に水平線をセット';
+          btnFitX.innerHTML = '↔ 水平';
+
+          const btnFitY = document.createElement('button');
+          btnFitY.className = 'btn btn-secondary';
+          btnFitY.style.padding = '3px 5px';
+          btnFitY.style.fontSize = '10px';
+          btnFitY.title = 'Y軸中央に垂直線をセット';
+          btnFitY.innerHTML = '↕ 垂直';
+
+          r5.appendChild(btnPick);
+          r5.appendChild(btnFitX);
+          r5.appendChild(btnFitY);
+
+          // Canvas & Stats
+          const chartCanvas = document.createElement('canvas');
+          chartCanvas.className = 'node-chart-canvas';
+          chartCanvas.width = 286;
+          chartCanvas.height = 95;
+
+          const statsBox = document.createElement('div');
+          statsBox.className = 'node-preview-box';
+          statsBox.innerHTML = `<span>直線プロファイルグラフ</span><span>Min / Max / Avg</span>`;
+
+          el.appendChild(r1);
+          el.appendChild(r2);
+          el.appendChild(r3);
+          el.appendChild(r4YRange);
+          el.appendChild(yCtrlContainer);
+          el.appendChild(r5);
+          el.appendChild(chartCanvas);
+          el.appendChild(statsBox);
+
+          const updateInputs = () => {
+            inpP1X.value = node.state.p1x;
+            inpP1Y.value = node.state.p1y;
+            inpP2X.value = node.state.p2x;
+            inpP2Y.value = node.state.p2y;
+            inpSamples.value = node.state.samples;
+            selAxis.value = node.state.axisMode;
+            selYRange.value = node.state.yRangeMode;
+            inpYMin.value = node.state.yFixedMin;
+            inpYMax.value = node.state.yFixedMax;
+            updateYVisibility();
+          };
+
+          const onCoordChange = () => {
+            node.state.p1x = parseFloat(inpP1X.value) || 0;
+            node.state.p1y = parseFloat(inpP1Y.value) || 0;
+            node.state.p2x = parseFloat(inpP2X.value) || 0;
+            node.state.p2y = parseFloat(inpP2Y.value) || 0;
+            executeGraph();
+          };
+
+          inpP1X.addEventListener('input', onCoordChange);
+          inpP1Y.addEventListener('input', onCoordChange);
+          inpP2X.addEventListener('input', onCoordChange);
+          inpP2Y.addEventListener('input', onCoordChange);
+
+          inpSamples.addEventListener('change', () => {
+            node.state.samples = Math.max(5, Math.min(1000, parseInt(inpSamples.value) || 100));
+            executeGraph();
+          });
+
+          selAxis.addEventListener('change', () => {
+            node.state.axisMode = selAxis.value;
+            executeGraph();
+          });
+
+          btnFitX.addEventListener('click', () => {
+            if (vtuData) {
+              node.state.p1x = parseFloat(cameraBounds.minX.toFixed(4));
+              node.state.p1y = parseFloat(((cameraBounds.minY + cameraBounds.maxY) / 2).toFixed(4));
+              node.state.p2x = parseFloat(cameraBounds.maxX.toFixed(4));
+              node.state.p2y = parseFloat(((cameraBounds.minY + cameraBounds.maxY) / 2).toFixed(4));
+            } else {
+              node.state.p1x = 0; node.state.p1y = 0.5; node.state.p2x = 1; node.state.p2y = 0.5;
+            }
+            updateInputs();
+            executeGraph();
+          });
+
+          btnFitY.addEventListener('click', () => {
+            if (vtuData) {
+              node.state.p1x = parseFloat(((cameraBounds.minX + cameraBounds.maxX) / 2).toFixed(4));
+              node.state.p1y = parseFloat(cameraBounds.minY.toFixed(4));
+              node.state.p2x = parseFloat(((cameraBounds.minX + cameraBounds.maxX) / 2).toFixed(4));
+              node.state.p2y = parseFloat(cameraBounds.maxY.toFixed(4));
+            } else {
+              node.state.p1x = 0.5; node.state.p1y = 0; node.state.p2x = 0.5; node.state.p2y = 1;
+            }
+            updateInputs();
+            executeGraph();
+          });
+
+          btnPick.addEventListener('click', () => {
+            startPickingProbe(node);
+          });
+
+          node.ui = {
+            chartCanvas,
+            statsBox,
+            updateInputs,
+            updatePeakDisplay: () => {
+              if (node.state.yRangeMode === 'peak_hold' && isFinite(node.state.peakMin)) {
+                peakInfo.textContent = `[${node.state.peakMin.toExponential(1)}, ${node.state.peakMax.toExponential(1)}]`;
+              }
+            }
+          };
+        },
+        evaluate: (node) => {
+          drawProbeChart(node);
+        }
+      }
+    };
+    NODE_TEMPLATES.output_graph = NODE_TEMPLATES.output_line_probe;
+
+    function createRow(labelText, contentEl) {
+      const row = document.createElement('div');
+      row.className = 'node-row';
+      const lbl = document.createElement('label');
+      lbl.textContent = labelText;
+      row.appendChild(lbl);
+      row.appendChild(contentEl);
+      return row;
+    }
+
+    function computeScalarOp(a, b, op) {
+      switch (op) {
+        case 'add': return a + b;
+        case 'sub': return a - b;
+        case 'mul': return a * b;
+        case 'div': return b !== 0 ? a / b : 0;
+        case 'max': return Math.max(a, b);
+        case 'min': return Math.min(a, b);
+        case 'hypot': return Math.hypot(a, b);
+        case 'atan2_deg': return Math.atan2(a, b) * (180 / Math.PI);
+        default: return a + b;
+      }
+    }
+
+    function computeUnaryOp(x, func) {
+      switch (func) {
+        case 'abs': return Math.abs(x);
+        case 'sqr': return x * x;
+        case 'sqrt': return x >= 0 ? Math.sqrt(x) : 0;
+        case 'inv': return x !== 0 ? 1 / x : 0;
+        case 'neg': return -x;
+        case 'log10': return x > 0 ? Math.log10(x) : -12;
+        case 'db': return x > 0 ? 20 * Math.log10(x) : -240;
+        case 'sin': return Math.sin(x);
+        case 'cos': return Math.cos(x);
+        default: return Math.abs(x);
+      }
+    }
+
+    function populateVtuInputPorts(node) {
+      if (!vtuData || !vtuData.fields) {
+        node.outputs = [];
+        return;
+      }
+      const outputs = [];
+      Object.keys(vtuData.fields).forEach(fieldName => {
+        const f = vtuData.fields[fieldName];
+        if (f.numComp === 1) {
+          outputs.push({ id: `${fieldName}__0`, label: fieldName, type: 'field' });
+        } else {
+          outputs.push({ id: `${fieldName}__mag`, label: `${fieldName} (Mag)`, type: 'field' });
+          outputs.push({ id: `${fieldName}__0`, label: `${fieldName} (X)`, type: 'field' });
+          outputs.push({ id: `${fieldName}__1`, label: `${fieldName} (Y)`, type: 'field' });
+          if (f.numComp >= 3) {
+            outputs.push({ id: `${fieldName}__2`, label: `${fieldName} (Z)`, type: 'field' });
+          }
+        }
+      });
+      node.outputs = outputs;
+    }
+
+    function renderNodeSockets(node) {
+      if (!node.el) return;
+      let socketsWrap = node.el.querySelector('.node-sockets');
+      const prevScrollTop = socketsWrap ? socketsWrap.scrollTop : 0;
+      const body = node.el.querySelector('.node-body');
+      if (!socketsWrap) {
+        socketsWrap = document.createElement('div');
+        socketsWrap.className = 'node-sockets';
+        socketsWrap.addEventListener('scroll', drawWires, { passive: true });
+        body.insertBefore(socketsWrap, body.firstChild);
+      }
+      socketsWrap.innerHTML = '';
+
+      const inCol = document.createElement('div');
+      inCol.className = 'sockets-in-col';
+      node.inputs.forEach(inp => {
+        const row = document.createElement('div');
+        row.className = 'socket-row';
+        const dot = document.createElement('div');
+        dot.className = `socket-dot ${inp.type}`;
+        dot.dataset.nodeId = node.id;
+        dot.dataset.socketId = inp.id;
+        dot.dataset.dir = 'in';
+
+        dot.addEventListener('mousedown', (e) => {
+          e.stopPropagation();
+          const rect = dot.getBoundingClientRect();
+          const parentRect = nodeGraphLayer.getBoundingClientRect();
+          connectingWire = {
+            dir: 'in',
+            nodeId: node.id,
+            socketId: inp.id,
+            socketType: inp.type,
+            startX: rect.left + rect.width / 2 - parentRect.left,
+            startY: rect.top + rect.height / 2 - parentRect.top,
+            curX: e.clientX - parentRect.left,
+            curY: e.clientY - parentRect.top
+          };
+        });
+
+        dot.addEventListener('mouseup', (e) => {
+          if (connectingWire && connectingWire.dir === 'out') {
+            addWire(connectingWire.nodeId, connectingWire.socketId, node.id, inp.id);
+          }
+        });
+        dot.addEventListener('click', (e) => {
+          disconnectSocket(node.id, inp.id);
+        });
+
+        row.appendChild(dot);
+        row.appendChild(document.createTextNode(inp.label));
+        inCol.appendChild(row);
+      });
+
+      const outCol = document.createElement('div');
+      outCol.className = 'sockets-out-col';
+      node.outputs.forEach(out => {
+        const row = document.createElement('div');
+        row.className = 'socket-row';
+        const dot = document.createElement('div');
+        dot.className = `socket-dot ${out.type}`;
+        dot.dataset.nodeId = node.id;
+        dot.dataset.socketId = out.id;
+        dot.dataset.dir = 'out';
+
+        dot.addEventListener('mousedown', (e) => {
+          e.stopPropagation();
+          const rect = dot.getBoundingClientRect();
+          const parentRect = nodeGraphLayer.getBoundingClientRect();
+          connectingWire = {
+            dir: 'out',
+            nodeId: node.id,
+            socketId: out.id,
+            socketType: out.type,
+            startX: rect.left + rect.width / 2 - parentRect.left,
+            startY: rect.top + rect.height / 2 - parentRect.top,
+            curX: e.clientX - parentRect.left,
+            curY: e.clientY - parentRect.top
+          };
+        });
+
+        dot.addEventListener('mouseup', (e) => {
+          if (connectingWire && connectingWire.dir === 'in') {
+            addWire(node.id, out.id, connectingWire.nodeId, connectingWire.socketId);
+          }
+        });
+
+        const span = document.createElement('span');
+        span.textContent = out.label;
+        span.title = out.label;
+        span.style.maxWidth = '240px';
+        span.style.overflow = 'hidden';
+        span.style.textOverflow = 'ellipsis';
+        span.style.whiteSpace = 'nowrap';
+        span.style.textAlign = 'right';
+
+        row.appendChild(span);
+        row.appendChild(dot);
+        outCol.appendChild(row);
+      });
+
+      socketsWrap.appendChild(inCol);
+      socketsWrap.appendChild(outCol);
+      if (prevScrollTop > 0) socketsWrap.scrollTop = prevScrollTop;
+    }
+
+    function addNode(type, x = 100, y = 100, stateOverrides = {}, forcedId = null) {
+      const tpl = NODE_TEMPLATES[type];
+      if (!tpl) return null;
+
+      const nodeId = forcedId || `node_${nextNodeId++}`;
+      if (forcedId) {
+        const idNum = parseInt(forcedId.replace(/\D/g, '')) || 0;
+        if (idNum >= nextNodeId) nextNodeId = idNum + 1;
+      }
+      const node = {
+        id: nodeId,
+        type: type,
+        title: tpl.title,
+        x: x,
+        y: y,
+        inputs: JSON.parse(JSON.stringify(tpl.inputs)),
+        outputs: JSON.parse(JSON.stringify(tpl.outputs)),
+        state: Object.assign({}, tpl.defaultState, stateOverrides),
+        inputsData: {},
+        outputsData: {},
+        el: null
+      };
+
+      // Create DOM element for node
+      const card = document.createElement('div');
+      card.className = 'node-card';
+      if (type === 'vtu_input') {
+        card.classList.add('vtu-input-card');
+        populateVtuInputPorts(node);
+      }
+      if (type === 'output_contour') {
+        card.classList.add('contour-card');
+      }
+      if (type === 'output_line_probe' || type === 'output_graph') {
+        card.classList.add('probe-card');
+        if (vtuData && cameraBounds) {
+          if ((!stateOverrides || (stateOverrides.p1x === undefined && stateOverrides.p2x === undefined)) && node.state.p1x === 0 && node.state.p1y === 0 && node.state.p2x === 1 && node.state.p2y === 0) {
+            node.state.p1x = parseFloat(cameraBounds.minX.toFixed(4));
+            node.state.p1y = parseFloat(((cameraBounds.minY + cameraBounds.maxY) / 2).toFixed(4));
+            node.state.p2x = parseFloat(cameraBounds.maxX.toFixed(4));
+            node.state.p2y = parseFloat(((cameraBounds.minY + cameraBounds.maxY) / 2).toFixed(4));
+          }
+        }
+      }
+      card.id = nodeId;
+      card.style.left = `${x}px`;
+      card.style.top = `${y}px`;
+
+      // Header
+      const header = document.createElement('div');
+      header.className = 'node-header';
+      header.innerHTML = `
+        <div class="node-title-group">
+          <span class="node-icon">${tpl.icon}</span>
+          <span>${tpl.title}</span>
+        </div>
+        <span class="node-close-btn" title="ノードを削除">×</span>
+      `;
+      header.querySelector('.node-close-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeNode(nodeId);
+      });
+
+      // Drag node header
+      header.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('node-close-btn')) return;
+        const parentRect = nodeGraphLayer.getBoundingClientRect();
+        const canvasMouseX = (e.clientX - parentRect.left - nodePan.x) / nodeZoom;
+        const canvasMouseY = (e.clientY - parentRect.top - nodePan.y) / nodeZoom;
+        draggingNode = node;
+        dragNodeOffset.x = canvasMouseX - node.x;
+        dragNodeOffset.y = canvasMouseY - node.y;
+        document.querySelectorAll('.node-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        e.stopPropagation();
+      });
+
+      // Body & Sockets
+      const body = document.createElement('div');
+      body.className = 'node-body';
+
+      // Template Specific Controls
+      tpl.createBody(node, body);
+
+      card.appendChild(header);
+      card.appendChild(body);
+      nodesContainer.appendChild(card);
+      node.el = card;
+
+      renderNodeSockets(node);
+
+      nodes.push(node);
+      drawWires();
+      return node;
+    }
+
+    function removeNode(nodeId) {
+      const nodeToRemove = nodes.find(n => n.id === nodeId);
+      if (nodeToRemove) {
+        if (nodeToRemove.type === 'output_contour') clearContourDisplay();
+        if (nodeToRemove.type === 'output_vectors') clearVectorDisplay();
+        if (nodeToRemove.type === 'output_line_probe' || nodeToRemove.type === 'output_graph') clearProbeDisplay();
+        if (nodeToRemove.el) nodeToRemove.el.remove();
+      }
+      wires = wires.filter(w => w.fromNode !== nodeId && w.toNode !== nodeId);
+      const idx = nodes.findIndex(n => n.id === nodeId);
+      if (idx >= 0) {
+        nodes.splice(idx, 1);
+      }
+      drawWires();
+      resetAllTimeNodes('node_remove');
+      executeGraph();
+    }
+
+    function addWire(fromNodeId, fromSocketId, toNodeId, toSocketId) {
+      if (fromNodeId === toNodeId) return; // Prevent self loop
+      // Remove any existing wire to the target input socket
+      wires = wires.filter(w => !(w.toNode === toNodeId && w.toSocket === toSocketId));
+
+      wires.push({
+        id: `wire_${nextWireId++}`,
+        fromNode: fromNodeId,
+        fromSocket: fromSocketId,
+        toNode: toNodeId,
+        toSocket: toSocketId
+      });
+
+      drawWires();
+      resetAllTimeNodes('add_wire');
+      executeGraph();
+    }
+
+    function disconnectSocket(nodeId, socketId) {
+      wires = wires.filter(w => !(w.toNode === nodeId && w.toSocket === socketId) && !(w.fromNode === nodeId && w.fromSocket === socketId));
+      drawWires();
+      resetAllTimeNodes('disconnect');
+      executeGraph();
+    }
+
+    // --- Wire Drawing on Canvas ---
+    function drawWires() {
+      wireCtx.clearRect(0, 0, wireCanvas.width, wireCanvas.height);
+      const parentRect = nodeGraphLayer.getBoundingClientRect();
+
+      // Update socket dot connected classes
+      document.querySelectorAll('.socket-dot').forEach(d => d.classList.remove('connected'));
+
+      // Draw all established wires
+      wires.forEach(w => {
+        const fromEl = document.querySelector(`.socket-dot[data-node-id="${CSS.escape(w.fromNode)}"][data-socket-id="${CSS.escape(w.fromSocket)}"]`);
+        const toEl = document.querySelector(`.socket-dot[data-node-id="${CSS.escape(w.toNode)}"][data-socket-id="${CSS.escape(w.toSocket)}"]`);
+        if (!fromEl || !toEl) return;
+
+        fromEl.classList.add('connected');
+        toEl.classList.add('connected');
+
+        const r1 = fromEl.getBoundingClientRect();
+        const r2 = toEl.getBoundingClientRect();
+
+        const x1 = r1.left + r1.width / 2 - parentRect.left;
+        const y1 = r1.top + r1.height / 2 - parentRect.top;
+        const x2 = r2.left + r2.width / 2 - parentRect.left;
+        const y2 = r2.top + r2.height / 2 - parentRect.top;
+
+        const dx = Math.abs(x2 - x1) * 0.5 + 20;
+
+        // Glowing Gradient Bezier Wire
+        const grad = wireCtx.createLinearGradient(x1, y1, x2, y2);
+        grad.addColorStop(0, '#38bdf8');
+        grad.addColorStop(1, '#818cf8');
+
+        wireCtx.save();
+        wireCtx.shadowColor = 'rgba(56, 189, 248, 0.6)';
+        wireCtx.shadowBlur = 8;
+        wireCtx.beginPath();
+        wireCtx.moveTo(x1, y1);
+        wireCtx.bezierCurveTo(x1 + dx, y1, x2 - dx, y2, x2, y2);
+        wireCtx.strokeStyle = grad;
+        wireCtx.lineWidth = 3;
+        wireCtx.stroke();
+        wireCtx.restore();
+      });
+
+      // Draw active dragging wire
+      if (connectingWire) {
+        const x1 = connectingWire.startX;
+        const y1 = connectingWire.startY;
+        const x2 = connectingWire.curX;
+        const y2 = connectingWire.curY;
+        const dx = Math.abs(x2 - x1) * 0.5 + 20;
+
+        wireCtx.save();
+        wireCtx.shadowColor = '#38bdf8';
+        wireCtx.shadowBlur = 12;
+        wireCtx.beginPath();
+        wireCtx.setLineDash([6, 4]);
+        wireCtx.moveTo(x1, y1);
+        wireCtx.bezierCurveTo(x1 + dx, y1, x2 - dx, y2, x2, y2);
+        wireCtx.strokeStyle = '#38bdf8';
+        wireCtx.lineWidth = 3;
+        wireCtx.stroke();
+        wireCtx.restore();
+      }
+    }
+
+    function handle3DPan(dx, dy) {
+      if (!camera) return;
+      const spanX = camera.right - camera.left;
+      const spanY = camera.top - camera.bottom;
+      const w = viewportContainer.clientWidth || 1;
+      const h = viewportContainer.clientHeight || 1;
+
+      cameraCenter.x -= (dx / w) * spanX;
+      cameraCenter.y += (dy / h) * spanY;
+      updateCameraProjection();
+    }
+
+    function handle3DZoom(deltaY, clientX, clientY) {
+      if (!camera) return;
+      const rect = viewportContainer.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+
+      const sx = (clientX !== undefined ? clientX : (rect.left + rect.width / 2)) - rect.left;
+      const sy = (clientY !== undefined ? clientY : (rect.top + rect.height / 2)) - rect.top;
+      const u = Math.max(0, Math.min(1, sx / rect.width));
+      const v = Math.max(0, Math.min(1, sy / rect.height));
+
+      const spanX = camera.right - camera.left;
+      const spanY = camera.top - camera.bottom;
+
+      const zoomFactor = deltaY < 0 ? 1.15 : 0.87;
+      const newZoom = Math.max(0.02, Math.min(100, viewZoom * zoomFactor));
+      const actualFactor = newZoom / viewZoom;
+      if (actualFactor === 1) return;
+
+      const newSpanX = spanX / actualFactor;
+      const newSpanY = spanY / actualFactor;
+
+      cameraCenter.x += (u - 0.5) * (spanX - newSpanX);
+      cameraCenter.y += (0.5 - v) * (spanY - newSpanY);
+
+      viewZoom = newZoom;
+      updateCameraProjection();
+    }
+
+    function startPickingProbe(node) {
+      activePickingNode = node;
+      pickingStep = 1;
+      statusBar.innerHTML = `<span style="color:#38bdf8; font-weight:bold;">🎯 3D画面上をクリックして始点 P1 を指定してください (Escでキャンセル)</span>`;
+      viewportContainer.style.cursor = 'crosshair';
+      nodeGraphLayer.style.cursor = 'crosshair';
+    }
+
+    function cancelPickingProbe() {
+      if (activePickingNode) {
+        activePickingNode = null;
+        pickingStep = 1;
+        viewportContainer.style.cursor = nodesVisible ? 'default' : 'grab';
+        nodeGraphLayer.style.cursor = 'grab';
+        statusBar.innerHTML = `<span>⚡ 直線指定をキャンセルしました</span>`;
+      }
+    }
+
+    function handlePickingClick(e) {
+      if (!activePickingNode || !camera) return;
+      const rect = viewportContainer.getBoundingClientRect();
+      const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      const ndcY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+      const vec = new THREE.Vector3(ndcX, ndcY, 0);
+      vec.unproject(camera);
+      const wx = parseFloat(vec.x.toFixed(4));
+      const wy = parseFloat(vec.y.toFixed(4));
+
+      if (pickingStep === 1) {
+        activePickingNode.state.p1x = wx;
+        activePickingNode.state.p1y = wy;
+        if (activePickingNode.ui && activePickingNode.ui.updateInputs) activePickingNode.ui.updateInputs();
+        pickingStep = 2;
+        statusBar.innerHTML = `<span style="color:#f43f5e; font-weight:bold;">🎯 始点 P1 (${wx}, ${wy}) を指定しました。次に終点 P2 をクリックしてください</span>`;
+        executeGraph();
+      } else if (pickingStep === 2) {
+        activePickingNode.state.p2x = wx;
+        activePickingNode.state.p2y = wy;
+        if (activePickingNode.ui && activePickingNode.ui.updateInputs) activePickingNode.ui.updateInputs();
+        statusBar.innerHTML = `<span>✅ 直線プローブを設定: (${activePickingNode.state.p1x}, ${activePickingNode.state.p1y}) → (${activePickingNode.state.p2x}, ${activePickingNode.state.p2y})</span>`;
+        activePickingNode = null;
+        pickingStep = 1;
+        viewportContainer.style.cursor = nodesVisible ? 'default' : 'grab';
+        nodeGraphLayer.style.cursor = 'grab';
+        executeGraph();
+      }
+    }
+
+    // --- 3D Viewport Direct Mouse Listeners (Active in 3D Fullscreen Mode) ---
+    viewportContainer.addEventListener('mousedown', (e) => {
+      if (activePickingNode) {
+        e.preventDefault();
+        e.stopPropagation();
+        handlePickingClick(e);
+        return;
+      }
+      if (nodesVisible) return;
+      isDragging3D = true;
+      dragStart3D.x = e.clientX;
+      dragStart3D.y = e.clientY;
+      viewportContainer.style.cursor = 'grabbing';
+    });
+
+    viewportContainer.addEventListener('wheel', (e) => {
+      if (nodesVisible) return;
+      e.preventDefault();
+      handle3DZoom(e.deltaY, e.clientX, e.clientY);
+    }, { passive: false });
+
+    // --- Interactive Mouse Listeners for Node Canvas (Node Mode) ---
+    nodeGraphLayer.addEventListener('mousedown', (e) => {
+      if (activePickingNode) {
+        if (!e.target.closest('.node-card')) {
+          e.preventDefault();
+          e.stopPropagation();
+          handlePickingClick(e);
+          return;
+        }
+      }
+      if (e.target === nodeGraphLayer || e.target === wireCanvas || e.target === nodesContainer) {
+        if (e.button === 0) {
+          if (e.shiftKey || e.altKey) {
+            // Shift+Drag or Alt+Drag in node mode pans 3D model
+            isDragging3D = true;
+            dragStart3D.x = e.clientX;
+            dragStart3D.y = e.clientY;
+          } else {
+            // Left drag on empty background: Pan Node Workspace
+            isPanningNodes = true;
+            panStart.x = e.clientX - nodePan.x;
+            panStart.y = e.clientY - nodePan.y;
+            nodeGraphLayer.style.cursor = 'grabbing';
+          }
+        } else if (e.button === 1) { // Middle click: Pan Node Workspace
+          isPanningNodes = true;
+          panStart.x = e.clientX - nodePan.x;
+          panStart.y = e.clientY - nodePan.y;
+          nodeGraphLayer.style.cursor = 'grabbing';
+        }
+      }
+    });
+
+    nodeGraphLayer.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (e.shiftKey || e.altKey) {
+        handle3DZoom(e.deltaY, e.clientX, e.clientY);
+        return;
+      }
+      const parentRect = nodeGraphLayer.getBoundingClientRect();
+      const mouseX = e.clientX - parentRect.left;
+      const mouseY = e.clientY - parentRect.top;
+
+      // Smooth node canvas zoom centered on cursor
+      const factor = e.deltaY < 0 ? 1.12 : 0.89;
+      const newZoom = Math.max(0.25, Math.min(3.0, nodeZoom * factor));
+      if (newZoom === nodeZoom) return;
+
+      const ratio = newZoom / nodeZoom;
+      nodePan.x = mouseX - (mouseX - nodePan.x) * ratio;
+      nodePan.y = mouseY - (mouseY - nodePan.y) * ratio;
+      nodeZoom = newZoom;
+
+      updateNodeGraphTransform();
+    }, { passive: false });
+
+    window.addEventListener('mousemove', (e) => {
+      const parentRect = nodeGraphLayer.getBoundingClientRect();
+      if (draggingNode) {
+        const curCanvasX = (e.clientX - parentRect.left - nodePan.x) / nodeZoom;
+        const curCanvasY = (e.clientY - parentRect.top - nodePan.y) / nodeZoom;
+        draggingNode.x = curCanvasX - dragNodeOffset.x;
+        draggingNode.y = curCanvasY - dragNodeOffset.y;
+        draggingNode.el.style.left = `${draggingNode.x}px`;
+        draggingNode.el.style.top = `${draggingNode.y}px`;
+        drawWires();
+      } else if (connectingWire) {
+        connectingWire.curX = e.clientX - parentRect.left;
+        connectingWire.curY = e.clientY - parentRect.top;
+        drawWires();
+      } else if (isPanningNodes) {
+        nodePan.x = e.clientX - panStart.x;
+        nodePan.y = e.clientY - panStart.y;
+        updateNodeGraphTransform();
+      } else if (isDragging3D) {
+        const dx = e.clientX - dragStart3D.x;
+        const dy = e.clientY - dragStart3D.y;
+        dragStart3D.x = e.clientX;
+        dragStart3D.y = e.clientY;
+        handle3DPan(dx, dy);
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (draggingNode) {
+        draggingNode = null;
+        if (typeof autoSaveToLocalStorage === 'function') autoSaveToLocalStorage();
+      }
+      if (connectingWire) {
+        connectingWire = null;
+        drawWires();
+      }
+      isPanningNodes = false;
+      isDragging3D = false;
+      nodeGraphLayer.style.cursor = 'grab';
+      if (!nodesVisible) viewportContainer.style.cursor = 'grab';
+    });
+
+    // --- Topological Evaluation of the Graph ---
+    function executeGraph(isAnim = false) {
+      const t0 = performance.now();
+
+      // Check if output nodes are present; if not, clear 3D displays immediately
+      if (!nodes.some(n => n.type === 'output_contour')) {
+        clearContourDisplay();
+      }
+      if (!nodes.some(n => n.type === 'output_vectors')) {
+        clearVectorDisplay();
+      }
+
+      // Clear input data cache
+      nodes.forEach(n => { n.inputsData = {}; });
+
+      // Build dependency graph & topological sort
+      const inDegree = new Map();
+      const adj = new Map();
+
+      nodes.forEach(n => {
+        inDegree.set(n.id, 0);
+        adj.set(n.id, []);
+      });
+
+      wires.forEach(w => {
+        if (adj.has(w.fromNode) && inDegree.has(w.toNode)) {
+          adj.get(w.fromNode).push(w);
+          inDegree.set(w.toNode, inDegree.get(w.toNode) + 1);
+        }
+      });
+
+      const queue = [];
+      nodes.forEach(n => {
+        if (inDegree.get(n.id) === 0) queue.push(n.id);
+      });
+
+      const evalOrder = [];
+      while (queue.length > 0) {
+        const u = queue.shift();
+        evalOrder.push(u);
+        const edges = adj.get(u) || [];
+        edges.forEach(w => {
+          inDegree.set(w.toNode, inDegree.get(w.toNode) - 1);
+          if (inDegree.get(w.toNode) === 0) queue.push(w.toNode);
+        });
+      }
+
+      // Evaluate nodes in topological order
+      evalOrder.forEach(nodeId => {
+        const node = nodes.find(n => n.id === nodeId);
+        if (!node) return;
+
+        // Gather input values from incoming wires
+        wires.filter(w => w.toNode === nodeId).forEach(w => {
+          const srcNode = nodes.find(n => n.id === w.fromNode);
+          if (srcNode && srcNode.outputsData) {
+            node.inputsData[w.toSocket] = srcNode.outputsData[w.fromSocket];
+          }
+        });
+
+        // Evaluate node
+        const tpl = NODE_TEMPLATES[node.type];
+        if (tpl && tpl.evaluate) {
+          tpl.evaluate(node);
+        }
+      });
+
+      const elapsed = (performance.now() - t0).toFixed(1);
+      const ptCount = vtuData ? vtuData.numPoints.toLocaleString() : '0';
+      if (!isAnim) {
+        statusBar.innerHTML = `<span>⚡ パイプライン実行完了: <b>${elapsed} ms</b> (${ptCount} 節点)</span>`;
+        if (typeof autoSaveToLocalStorage === 'function') autoSaveToLocalStorage();
+      }
+    }
+
+    function resetAllTimeNodes(triggerName) {
+      if (!Array.isArray(nodes)) return;
+      nodes.forEach(n => {
+        if (n.type === 'time_input' && n.state && (n.state.autoReset || triggerName === 'manual_reset')) {
+          n.state.elapsed = 0.0;
+          if (n.ui && n.ui.updateDisplay) n.ui.updateDisplay();
+        }
+        if (n.type === 'output_contour' || n.type === 'output_line_probe') {
+          n.state.peakMin = Infinity;
+          n.state.peakMax = -Infinity;
+          n.state.peakAbs = 0;
+        }
+      });
+    }
+
+    // ==========================================
+    // 5. Output Renderers (3D Contour, Vectors, Graph)
+    // ==========================================
+
+    function clearContourDisplay() {
+      if (contourMesh) {
+        scene.remove(contourMesh);
+        if (contourMesh.geometry) contourMesh.geometry.dispose();
+        if (contourMesh.material) contourMesh.material.dispose();
+        contourMesh = null;
+      }
+      const legend = document.getElementById('legend-container');
+      if (legend) legend.style.display = 'none';
+    }
+
+    function clearVectorDisplay() {
+      if (vectorMesh) {
+        scene.remove(vectorMesh);
+        if (vectorMesh.geometry) vectorMesh.geometry.dispose();
+        if (vectorMesh.material) vectorMesh.material.dispose();
+        vectorMesh = null;
+      }
+    }
+
+    function clearProbeDisplay() {
+      if (probeMesh) {
+        scene.remove(probeMesh);
+        probeMesh.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) child.material.dispose();
+        });
+        probeMesh = null;
+      }
+    }
+
+    function update3DContourMesh(arg1, cmapName, symmetric, statsBox) {
+      let node = null;
+      let fieldVals = null;
+      if (arg1 && typeof arg1 === 'object' && arg1.type === 'output_contour') {
+        node = arg1;
+        fieldVals = node.inputsData ? node.inputsData.in_field : null;
+        cmapName = node.state.cmap || 'bkr';
+        symmetric = node.state.symmetric;
+        statsBox = node.ui ? node.ui.statsBox : null;
+      } else {
+        fieldVals = arg1;
+        node = nodes.find(n => n.type === 'output_contour');
+      }
+
+      if (!fieldVals || !vtuData || vtuData.triIndices.length === 0) {
+        clearContourDisplay();
+        if (statsBox) statsBox.innerHTML = `<span>入力データなし</span>`;
+        return;
+      }
+
+      const rangeMode = (node && node.state && node.state.rangeMode) || 'auto';
+
+      const n = vtuData.numPoints;
+      let curMin = Infinity, curMax = -Infinity;
+      let curMaxAbs = 0;
+      let sum = 0, sumSq = 0;
+
+      for (let i = 0; i < n; i++) {
+        const val = fieldVals[i];
+        if (val < curMin) curMin = val;
+        if (val > curMax) curMax = val;
+        const absV = Math.abs(val);
+        if (absV > curMaxAbs) curMaxAbs = absV;
+        sum += val;
+        sumSq += val * val;
+      }
+
+      if (node) {
+        node.lastStats = { curMin, curMax, curMaxAbs };
+        if (rangeMode === 'peak_hold') {
+          if (!isFinite(node.state.peakMin)) node.state.peakMin = curMin;
+          else node.state.peakMin = Math.min(node.state.peakMin, curMin);
+
+          if (!isFinite(node.state.peakMax)) node.state.peakMax = curMax;
+          else node.state.peakMax = Math.max(node.state.peakMax, curMax);
+
+          node.state.peakAbs = Math.max(node.state.peakAbs || 0, curMaxAbs);
+          if (node.ui && node.ui.updateDisplay) node.ui.updateDisplay();
+        }
+      }
+
+      let minVal, maxVal;
+      if (rangeMode === 'fixed' && node) {
+        let fMin = typeof node.state.fixedMin === 'number' ? node.state.fixedMin : -1.0;
+        let fMax = typeof node.state.fixedMax === 'number' ? node.state.fixedMax : 1.0;
+        if (fMin >= fMax) fMax = fMin + 1e-6;
+        if (symmetric || cmapName === 'bkr') {
+          const a = Math.max(Math.abs(fMin), Math.abs(fMax)) || 1.0;
+          minVal = -a;
+          maxVal = a;
+        } else {
+          minVal = fMin;
+          maxVal = fMax;
+        }
+      } else if (rangeMode === 'peak_hold' && node) {
+        if (symmetric || cmapName === 'bkr') {
+          const a = node.state.peakAbs || 1.0;
+          minVal = -a;
+          maxVal = a;
+        } else {
+          minVal = isFinite(node.state.peakMin) ? node.state.peakMin : curMin;
+          maxVal = isFinite(node.state.peakMax) ? node.state.peakMax : curMax;
+          if (minVal >= maxVal) maxVal = minVal + 1.0;
+        }
+      } else { // auto
+        if (symmetric || cmapName === 'bkr') {
+          if (curMaxAbs === 0) curMaxAbs = 1.0;
+          minVal = -curMaxAbs;
+          maxVal = curMaxAbs;
+        } else {
+          minVal = curMin;
+          maxVal = curMax;
+          if (minVal === maxVal) maxVal = minVal + 1.0;
+        }
+      }
+
+      const colorFunc = ColorMaps[cmapName] || ColorMaps.bkr;
+      const range = (maxVal - minVal) || 1.0;
+
+      // Reuse existing BufferGeometry attributes if point count matches
+      if (contourMesh && contourMesh.geometry && contourMesh.geometry.attributes.color && contourMesh.geometry.attributes.color.count === n) {
+        const colorAttr = contourMesh.geometry.attributes.color;
+        const colors = colorAttr.array;
+        for (let i = 0; i < n; i++) {
+          const norm = (fieldVals[i] - minVal) / range;
+          const [r, g, b] = colorFunc(Math.max(0, Math.min(1, norm)));
+          colors[i * 3] = r;
+          colors[i * 3 + 1] = g;
+          colors[i * 3 + 2] = b;
+        }
+        colorAttr.needsUpdate = true;
+      } else {
+        clearContourDisplay();
+
+        // Positions Buffer
+        const positions = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) {
+          positions[i * 3] = vtuData.points[i * 3];
+          positions[i * 3 + 1] = vtuData.points[i * 3 + 1];
+          positions[i * 3 + 2] = 0;
+        }
+
+        // Colors Buffer
+        const colors = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) {
+          const norm = (fieldVals[i] - minVal) / range;
+          const [r, g, b] = colorFunc(Math.max(0, Math.min(1, norm)));
+          colors[i * 3] = r;
+          colors[i * 3 + 1] = g;
+          colors[i * 3 + 2] = b;
+        }
+
+        const geom = new THREE.BufferGeometry();
+        geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        geom.setIndex(new THREE.BufferAttribute(vtuData.triIndices, 1));
+
+        const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+        contourMesh = new THREE.Mesh(geom, mat);
+        scene.add(contourMesh);
+      }
+
+      // Update Viewport Legend
+      const legend = document.getElementById('legend-container');
+      if (legend) legend.style.display = 'flex';
+      let activeTitle = 'Processed Output';
+      const contourNode = node || nodes.find(n => n.type === 'output_contour');
+      if (contourNode) {
+        const inWire = wires.find(w => w.toNode === contourNode.id && w.toSocket === 'in_field');
+        if (inWire) {
+          const srcNode = nodes.find(n => n.id === inWire.fromNode);
+          if (srcNode) {
+            const srcSocket = srcNode.outputs.find(s => s.id === inWire.fromSocket);
+            if (srcSocket) activeTitle = srcSocket.label;
+          }
+        }
+      }
+      document.getElementById('legend-title').textContent = activeTitle;
+      document.getElementById('legend-max').textContent = maxVal.toExponential(3);
+      document.getElementById('legend-min').textContent = minVal.toExponential(3);
+
+      const bar = document.getElementById('legend-bar');
+      const stops = [];
+      for (let s = 10; s >= 0; s--) {
+        const rgb = colorFunc(s / 10);
+        stops.push(`rgb(${Math.round(rgb[0] * 255)}, ${Math.round(rgb[1] * 255)}, ${Math.round(rgb[2] * 255)})`);
+      }
+      bar.style.background = `linear-gradient(to bottom, ${stops.join(', ')})`;
+
+      // Update Node Stats Box
+      if (statsBox) {
+        const mean = (sum / n).toExponential(3);
+        const rms = Math.sqrt(sumSq / n).toExponential(3);
+        const modeLabel = rangeMode === 'fixed' ? '固定' : (rangeMode === 'peak_hold' ? 'ピークホールド' : '自動');
+        statsBox.innerHTML = `
+          <span>実測: [${curMin.toExponential(2)}, ${curMax.toExponential(2)}] (A=${curMaxAbs.toExponential(2)})</span>
+          <span>スケール(${modeLabel}): [${minVal.toExponential(2)}, ${maxVal.toExponential(2)}]</span>
+          <span>平均: ${mean} | RMS: ${rms}</span>
+        `;
+      }
+    }
+
+    function createVectorShape(style) {
+      const shape = new THREE.Shape();
+      if (style === 'triangle') {
+        // 三角矢印 (Wedge / Triangle Arrow)
+        shape.moveTo(0, -0.10);
+        shape.lineTo(1.0, 0.0);
+        shape.lineTo(0, 0.10);
+        shape.closePath();
+      } else if (style === 'line') {
+        // 直線 (Line Segment with thickness)
+        shape.moveTo(0, -0.04);
+        shape.lineTo(1.0, -0.04);
+        shape.lineTo(1.0, 0.04);
+        shape.lineTo(0, 0.04);
+        shape.closePath();
+      } else {
+        // 矢印 (Standard Arrow)
+        shape.moveTo(0, -0.04);
+        shape.lineTo(0.7, -0.04);
+        shape.lineTo(0.7, -0.12);
+        shape.lineTo(1.0, 0.0);
+        shape.lineTo(0.7, 0.12);
+        shape.lineTo(0.7, 0.04);
+        shape.lineTo(0, 0.04);
+        shape.closePath();
+      }
+      return shape;
+    }
+
+    function update3DVectorMesh(vxArr, vyArr, scale, step, colorHex = '#38bdf8', shapeType = 'arrow') {
+      clearVectorDisplay();
+
+      if (!vxArr || !vyArr || !vtuData) return;
+
+      const validNodes = [];
+      let maxLen = 0;
+      for (let i = 0; i < vtuData.numPoints; i += step) {
+        const vx = vxArr[i] || 0;
+        const vy = vyArr[i] || 0;
+        const len = Math.hypot(vx, vy);
+        if (len > 0) {
+          validNodes.push({ idx: i, vx, vy, len });
+          if (len > maxLen) maxLen = len;
+        }
+      }
+
+      const count = validNodes.length;
+      if (count === 0) return;
+
+      const arrowShape = createVectorShape(shapeType);
+      const arrowGeom = new THREE.ShapeGeometry(arrowShape);
+      const arrowMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(colorHex || '#38bdf8'),
+        side: THREE.DoubleSide
+      });
+      vectorMesh = new THREE.InstancedMesh(arrowGeom, arrowMat, count);
+
+      const dummy = new THREE.Object3D();
+      const domainSpan = Math.max(cameraBounds.maxX - cameraBounds.minX, cameraBounds.maxY - cameraBounds.minY) || 1.0;
+      const baseArrowScale = (domainSpan / Math.sqrt(vtuData.numPoints)) * 1.5 * scale;
+
+      for (let k = 0; k < count; k++) {
+        const node = validNodes[k];
+        const px = vtuData.points[node.idx * 3];
+        const py = vtuData.points[node.idx * 3 + 1];
+        const angle = Math.atan2(node.vy, node.vx);
+
+        const intensityRatio = Math.max(0, node.len / (maxLen || 1));
+        const sqrtRatio = Math.sqrt(intensityRatio);
+        const currentScale = baseArrowScale * Math.min(3.0, Math.max(0.1, sqrtRatio * 2.2));
+
+        dummy.position.set(px, py, 0.003);
+        dummy.rotation.set(0, 0, angle);
+        dummy.scale.set(currentScale, currentScale, 1.0);
+        dummy.updateMatrix();
+
+        vectorMesh.setMatrixAt(k, dummy.matrix);
+      }
+
+      vectorMesh.instanceMatrix.needsUpdate = true;
+      scene.add(vectorMesh);
+    }
+
+    function update3DProbeMesh(p1x, p1y, p2x, p2y) {
+      clearProbeDisplay();
+      if (!scene) return;
+
+      const lineGeom = new THREE.BufferGeometry();
+      const linePos = new Float32Array([
+        p1x, p1y, 0.005,
+        p2x, p2y, 0.005
+      ]);
+      lineGeom.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
+      const lineMat = new THREE.LineBasicMaterial({
+        color: 0xf43f5e,
+        linewidth: 3,
+        depthTest: false
+      });
+      const lineObj = new THREE.Line(lineGeom, lineMat);
+
+      // Marker dots at P1 and P2
+      const ptsGeom = new THREE.BufferGeometry();
+      const ptsPos = new Float32Array([
+        p1x, p1y, 0.006,
+        p2x, p2y, 0.006
+      ]);
+      ptsGeom.setAttribute('position', new THREE.BufferAttribute(ptsPos, 3));
+      const ptsMat = new THREE.PointsMaterial({
+        color: 0x38bdf8,
+        size: 9,
+        sizeAttenuation: false,
+        depthTest: false
+      });
+      const ptsObj = new THREE.Points(ptsGeom, ptsMat);
+
+      probeMesh = new THREE.Group();
+      probeMesh.add(lineObj);
+      probeMesh.add(ptsObj);
+      probeMesh.renderOrder = 999;
+      scene.add(probeMesh);
+    }
+
+    function sampleLineProbe(p1x, p1y, p2x, p2y, samples, fieldVals) {
+      if (!vtuData || !vtuData.triIndices || !fieldVals) return [];
+      const pts = vtuData.points;
+      const tris = vtuData.triIndices;
+      const numTris = tris.length / 3;
+
+      const lineMinX = Math.min(p1x, p2x);
+      const lineMaxX = Math.max(p1x, p2x);
+      const lineMinY = Math.min(p1y, p2y);
+      const lineMaxY = Math.max(p1y, p2y);
+
+      // Candidate triangles overlapping bounding box
+      const candTris = [];
+      for (let t = 0; t < numTris; t++) {
+        const i0 = tris[t * 3], i1 = tris[t * 3 + 1], i2 = tris[t * 3 + 2];
+        const x0 = pts[i0 * 3], y0 = pts[i0 * 3 + 1];
+        const x1 = pts[i1 * 3], y1 = pts[i1 * 3 + 1];
+        const x2 = pts[i2 * 3], y2 = pts[i2 * 3 + 1];
+        const tMinX = Math.min(x0, x1, x2), tMaxX = Math.max(x0, x1, x2);
+        const tMinY = Math.min(y0, y1, y2), tMaxY = Math.max(y0, y1, y2);
+        if (tMaxX >= lineMinX && tMinX <= lineMaxX && tMaxY >= lineMinY && tMinY <= lineMaxY) {
+          candTris.push(t);
+        }
+      }
+
+      let lastFoundTri = candTris.length > 0 ? candTris[0] : -1;
+      const eps = -1e-4;
+      const results = [];
+
+      const testTriangle = (tIdx, px, py) => {
+        const i0 = tris[tIdx * 3], i1 = tris[tIdx * 3 + 1], i2 = tris[tIdx * 3 + 2];
+        const tx0 = pts[i0 * 3], ty0 = pts[i0 * 3 + 1];
+        const tx1 = pts[i1 * 3], ty1 = pts[i1 * 3 + 1];
+        const tx2 = pts[i2 * 3], ty2 = pts[i2 * 3 + 1];
+
+        const v0x = tx1 - tx0, v0y = ty1 - ty0;
+        const v1x = tx2 - tx0, v1y = ty2 - ty0;
+        const v2x = px - tx0, v2y = py - ty0;
+
+        const det = v0x * v1y - v1x * v0y;
+        if (Math.abs(det) < 1e-15) return null;
+
+        const invDet = 1.0 / det;
+        const u = (v2x * v1y - v1x * v2y) * invDet;
+        const v = (v0x * v2y - v2x * v0y) * invDet;
+        const w = 1.0 - u - v;
+
+        if (u >= eps && v >= eps && w >= eps) {
+          const cu = Math.max(0, u), cv = Math.max(0, v), cw = Math.max(0, w);
+          return (cw * fieldVals[i0] + cu * fieldVals[i1] + cv * fieldVals[i2]) / (cu + cv + cw);
+        }
+        return null;
+      };
+
+      for (let k = 0; k < samples; k++) {
+        const frac = samples > 1 ? k / (samples - 1) : 0;
+        const px = p1x + frac * (p2x - p1x);
+        const py = p1y + frac * (p2y - p1y);
+        let val = null;
+
+        if (lastFoundTri >= 0) {
+          val = testTriangle(lastFoundTri, px, py);
+        }
+        if (val === null) {
+          for (let c = 0; c < candTris.length; c++) {
+            const tIdx = candTris[c];
+            if (tIdx === lastFoundTri) continue;
+            const res = testTriangle(tIdx, px, py);
+            if (res !== null) {
+              val = res;
+              lastFoundTri = tIdx;
+              break;
+            }
+          }
+        }
+        results.push({ frac, x: px, y: py, val });
+      }
+
+      return results;
+    }
+
+    function drawProbeChart(node) {
+      if (!node.ui || !node.ui.chartCanvas) return;
+      const cvs = node.ui.chartCanvas;
+      const ctx = cvs.getContext('2d');
+      const w = cvs.width;
+      const h = cvs.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const data = node.inputsData.in_data;
+      if (!data || !(data instanceof Float64Array || data instanceof Float32Array) || data.length === 0) {
+        ctx.fillStyle = '#64748b';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('データ入力待ち (配線してください)', w / 2, h / 2 + 4);
+        if (node.ui.statsBox) node.ui.statsBox.innerHTML = `<span>データなし</span>`;
+        clearProbeDisplay();
+        return;
+      }
+
+      if (!vtuData || !vtuData.triIndices || vtuData.triIndices.length === 0) {
+        ctx.fillStyle = '#64748b';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('VTU メッシュ読込待ち', w / 2, h / 2 + 4);
+        if (node.ui.statsBox) node.ui.statsBox.innerHTML = `<span>VTU データなし</span>`;
+        clearProbeDisplay();
+        return;
+      }
+
+      const p1x = node.state.p1x !== undefined ? node.state.p1x : 0;
+      const p1y = node.state.p1y !== undefined ? node.state.p1y : 0;
+      const p2x = node.state.p2x !== undefined ? node.state.p2x : 1;
+      const p2y = node.state.p2y !== undefined ? node.state.p2y : 0;
+      const samples = Math.max(5, Math.min(1000, node.state.samples || 100));
+      const axisMode = node.state.axisMode || 'dist';
+
+      // 1. Update 3D Line Probe in Three.js viewport
+      update3DProbeMesh(p1x, p1y, p2x, p2y);
+
+      // 2. Perform Line Probe Interpolation
+      const totalLen = Math.hypot(p2x - p1x, p2y - p1y);
+      const probeRes = sampleLineProbe(p1x, p1y, p2x, p2y, samples, data);
+
+      const validSamples = probeRes.filter(p => p.val !== null && !isNaN(p.val));
+      if (validSamples.length === 0) {
+        ctx.fillStyle = '#f43f5e';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('指定線分上にメッシュが存在しません', w / 2, h / 2 + 4);
+        if (node.ui.statsBox) {
+          node.ui.statsBox.innerHTML = `
+            <span>線分長: L = ${totalLen.toExponential(3)} m</span>
+            <span style="color:#f43f5e;">メッシュ外 (有効点数: 0 / ${samples})</span>
+          `;
+        }
+        return;
+      }
+
+      const yRangeMode = node.state.yRangeMode || 'auto';
+
+      let curMin = Infinity, curMax = -Infinity, sum = 0, sumSq = 0;
+      validSamples.forEach(p => {
+        const v = p.val;
+        if (v < curMin) curMin = v;
+        if (v > curMax) curMax = v;
+        sum += v;
+        sumSq += v * v;
+      });
+      const mean = sum / validSamples.length;
+      const rms = Math.sqrt(sumSq / validSamples.length);
+
+      node.lastStats = { curMin, curMax, totalLen };
+
+      // Peak hold tracking
+      if (yRangeMode === 'peak_hold') {
+        if (!isFinite(node.state.peakMin)) node.state.peakMin = curMin;
+        else node.state.peakMin = Math.min(node.state.peakMin, curMin);
+
+        if (!isFinite(node.state.peakMax)) node.state.peakMax = curMax;
+        else node.state.peakMax = Math.max(node.state.peakMax, curMax);
+
+        if (node.ui && node.ui.updatePeakDisplay) node.ui.updatePeakDisplay();
+      }
+
+      // Determine plotMin and plotMax
+      let plotMin, plotMax;
+      if (yRangeMode === 'fixed') {
+        plotMin = typeof node.state.yFixedMin === 'number' ? node.state.yFixedMin : -1.0;
+        plotMax = typeof node.state.yFixedMax === 'number' ? node.state.yFixedMax : 1.0;
+        if (plotMin >= plotMax) plotMax = plotMin + 1e-6;
+      } else if (yRangeMode === 'peak_hold') {
+        plotMin = isFinite(node.state.peakMin) ? node.state.peakMin : curMin;
+        plotMax = isFinite(node.state.peakMax) ? node.state.peakMax : curMax;
+        if (plotMin >= plotMax) plotMax = plotMin + 1.0;
+      } else { // auto
+        plotMin = curMin;
+        plotMax = curMax;
+        if (plotMin === plotMax) plotMax = plotMin + 1.0;
+      }
+
+      if (node.ui.statsBox) {
+        const modeLabel = yRangeMode === 'fixed' ? '固定' : (yRangeMode === 'peak_hold' ? 'ピークホールド' : '自動');
+        node.ui.statsBox.innerHTML = `
+          <span>実測: [${curMin.toExponential(2)}, ${curMax.toExponential(2)}] | 長さ: ${totalLen.toFixed(3)}m</span>
+          <span>Y軸(${modeLabel}): [${plotMin.toExponential(2)}, ${plotMax.toExponential(2)}] (有効: ${validSamples.length}/${samples})</span>
+        `;
+      }
+
+      // 3. Draw 1D Profile Chart
+      const padLeft = 28;
+      const padRight = 14;
+      const padTop = 10;
+      const padBottom = 20;
+      const plotW = w - padLeft - padRight;
+      const plotH = h - padTop - padBottom;
+
+      // Draw subtle grid lines
+      ctx.strokeStyle = 'rgba(51, 65, 85, 0.4)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 3]);
+      [0, 0.5, 1.0].forEach(ratio => {
+        const gy = padTop + plotH * (1 - ratio);
+        ctx.beginPath();
+        ctx.moveTo(padLeft, gy);
+        ctx.lineTo(padLeft + plotW, gy);
+        ctx.stroke();
+      });
+      ctx.setLineDash([]);
+
+      const range = (plotMax - plotMin) || 1.0;
+
+      // Draw gradient fill area
+      const grad = ctx.createLinearGradient(0, padTop, 0, padTop + plotH);
+      grad.addColorStop(0, 'rgba(56, 189, 248, 0.35)');
+      grad.addColorStop(1, 'rgba(56, 189, 248, 0.02)');
+
+      let started = false;
+      let lastX = padLeft, lastY = padTop + plotH;
+
+      for (let k = 0; k < probeRes.length; k++) {
+        const p = probeRes[k];
+        const xFrac = samples > 1 ? k / (samples - 1) : 0;
+        const cx = padLeft + xFrac * plotW;
+
+        if (p.val === null || isNaN(p.val)) {
+          if (started) {
+            ctx.lineTo(lastX, padTop + plotH);
+            ctx.closePath();
+            ctx.fillStyle = grad;
+            ctx.fill();
+            started = false;
+          }
+          continue;
+        }
+
+        const normY = (p.val - plotMin) / range;
+        const clampedNormY = Math.max(0, Math.min(1, normY));
+        const cy = padTop + plotH * (1 - clampedNormY);
+
+        if (!started) {
+          ctx.beginPath();
+          ctx.moveTo(cx, padTop + plotH);
+          ctx.lineTo(cx, cy);
+          started = true;
+        } else {
+          ctx.lineTo(cx, cy);
+        }
+        lastX = cx;
+        lastY = cy;
+      }
+      if (started) {
+        ctx.lineTo(lastX, padTop + plotH);
+        ctx.closePath();
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
+
+      // Draw Line
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2.0;
+      ctx.beginPath();
+      let lineDrawing = false;
+      for (let k = 0; k < probeRes.length; k++) {
+        const p = probeRes[k];
+        const xFrac = samples > 1 ? k / (samples - 1) : 0;
+        const cx = padLeft + xFrac * plotW;
+        if (p.val === null || isNaN(p.val)) {
+          lineDrawing = false;
+          continue;
+        }
+        const normY = (p.val - plotMin) / range;
+        const clampedNormY = Math.max(0, Math.min(1, normY));
+        const cy = padTop + plotH * (1 - clampedNormY);
+        if (!lineDrawing) {
+          ctx.moveTo(cx, cy);
+          lineDrawing = true;
+        } else {
+          ctx.lineTo(cx, cy);
+        }
+      }
+      ctx.stroke();
+
+      // Axis labels
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '8.5px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(plotMax.toExponential(1), padLeft - 3, padTop + 8);
+      ctx.fillText(plotMin.toExponential(1), padLeft - 3, padTop + plotH);
+
+      ctx.textAlign = 'left';
+      let startLabel = '0.0';
+      let endLabel = totalLen.toFixed(2);
+      if (axisMode === 'x') {
+        startLabel = p1x.toFixed(2);
+        endLabel = p2x.toFixed(2);
+      } else if (axisMode === 'y') {
+        startLabel = p1y.toFixed(2);
+        endLabel = p2y.toFixed(2);
+      }
+      ctx.fillText(startLabel, padLeft, h - 4);
+      ctx.textAlign = 'right';
+      ctx.fillText(endLabel, padLeft + plotW, h - 4);
+      ctx.textAlign = 'center';
+      ctx.fillText(axisMode === 'dist' ? '距離 s [m]' : (axisMode === 'x' ? 'X 座標 [m]' : 'Y 座標 [m]'), padLeft + plotW / 2, h - 4);
+    }
+
+    const drawNodeChart = drawProbeChart;
+
+    function updateWireframeAndBoundaryMeshes() {
+      if (wireframeMesh) {
+        scene.remove(wireframeMesh);
+        wireframeMesh.geometry.dispose();
+        wireframeMesh = null;
+      }
+      if (boundaryMesh) {
+        scene.remove(boundaryMesh);
+        boundaryMesh.geometry.dispose();
+        boundaryMesh = null;
+      }
+
+      if (!vtuData) return;
+
+      const positions = new Float32Array(vtuData.numPoints * 3);
+      for (let i = 0; i < vtuData.numPoints; i++) {
+        positions[i * 3] = vtuData.points[i * 3];
+        positions[i * 3 + 1] = vtuData.points[i * 3 + 1];
+        positions[i * 3 + 2] = 0;
+      }
+
+      // Wireframe
+      if (document.getElementById('chk-wireframe').checked && vtuData.wireIndices.length > 0) {
+        const wireGeom = new THREE.BufferGeometry();
+        wireGeom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        wireGeom.setIndex(new THREE.BufferAttribute(vtuData.wireIndices, 1));
+        const wireMat = new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.5 });
+        wireframeMesh = new THREE.LineSegments(wireGeom, wireMat);
+        wireframeMesh.position.z = 0.001;
+        scene.add(wireframeMesh);
+      }
+
+      // Material Boundary Lines (Highlight Outer & Material Edges)
+      if (document.getElementById('chk-boundary').checked && vtuData.materialEdges && vtuData.materialEdges.length > 0) {
+        const bPos = new Float32Array(vtuData.materialEdges.length * 2 * 3);
+        for (let i = 0; i < vtuData.materialEdges.length; i++) {
+          const e = vtuData.materialEdges[i];
+          bPos[i * 6 + 0] = vtuData.points[e.n1 * 3];
+          bPos[i * 6 + 1] = vtuData.points[e.n1 * 3 + 1];
+          bPos[i * 6 + 2] = 0.002;
+
+          bPos[i * 6 + 3] = vtuData.points[e.n2 * 3];
+          bPos[i * 6 + 4] = vtuData.points[e.n2 * 3 + 1];
+          bPos[i * 6 + 5] = 0.002;
+        }
+        const bGeom = new THREE.BufferGeometry();
+        bGeom.setAttribute('position', new THREE.BufferAttribute(bPos, 3));
+        const bMat = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
+        boundaryMesh = new THREE.LineSegments(bGeom, bMat);
+        scene.add(boundaryMesh);
+      }
+    }
+
+    // ==========================================
+    // 6. Default Graph Setup
+    // ==========================================
+    function initDefaultGraph() {
+      clearContourDisplay();
+      clearVectorDisplay();
+      clearProbeDisplay();
+
+      nodes.forEach(n => n.el && n.el.remove());
+      nodes = [];
+      wires = [];
+
+      nodePan = { x: 0, y: 0 };
+      nodeZoom = 1.0;
+      updateNodeGraphTransform();
+
+      const n1 = addNode('vtu_input', 50, 100);
+      const n2 = addNode('output_contour', 460, 100, { cmap: 'bkr', symmetric: true });
+      if (n1 && n1.outputs && n1.outputs.length > 0) {
+        addWire(n1.id, n1.outputs[0].id, n2.id, 'in_field');
+      }
+
+      executeGraph();
+    }
+
+    // ==========================================
+    // 6.5 Pipeline Export & Import (JSON Save / Load)
+    // ==========================================
+    function exportGraphData() {
+      return {
+        version: 1,
+        timestamp: new Date().toISOString(),
+        nodePan: { x: nodePan.x, y: nodePan.y },
+        nodeZoom: nodeZoom,
+        nodes: nodes.map(n => ({
+          id: n.id,
+          type: n.type,
+          x: Math.round(n.x),
+          y: Math.round(n.y),
+          state: JSON.parse(JSON.stringify(n.state || {})),
+          outputs: n.type === 'vtu_input' ? JSON.parse(JSON.stringify(n.outputs || [])) : undefined
+        })),
+        wires: wires.map(w => ({
+          id: w.id,
+          fromNode: w.fromNode,
+          fromSocket: w.fromSocket,
+          toNode: w.toNode,
+          toSocket: w.toSocket
+        }))
+      };
+    }
+
+    let autoSaveTimer = null;
+    function autoSaveToLocalStorage() {
+      if (autoSaveTimer) clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(() => {
+        try {
+          const data = exportGraphData();
+          localStorage.setItem('vtu_studio_last_graph', JSON.stringify(data));
+        } catch (err) {
+          // Ignore storage errors
+        }
+      }, 500);
+    }
+
+    function saveGraphToFile() {
+      const data = exportGraphData();
+      autoSaveToLocalStorage();
+      const jsonStr = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const dateStr = new Date().toISOString().slice(0, 10);
+      a.download = `vtu_pipeline_${dateStr}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      statusBar.innerHTML = `<span>💾 パイプライン設定をJSON保存しました (${nodes.length} ノード, ${wires.length} 配線)</span>`;
+    }
+
+    function importGraphData(data) {
+      if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.wires)) {
+        throw new Error('無効なパイプライン JSON データです。');
+      }
+
+      // Clear existing 3D outputs
+      clearContourDisplay();
+      clearVectorDisplay();
+      clearProbeDisplay();
+
+      // Clear existing nodes and wires
+      nodes.forEach(n => n.el && n.el.remove());
+      nodes = [];
+      wires = [];
+
+      if (data.nodePan) nodePan = { x: data.nodePan.x || 0, y: data.nodePan.y || 0 };
+      if (data.nodeZoom) nodeZoom = data.nodeZoom || 1.0;
+
+      let maxNId = 0;
+      let maxWId = 0;
+
+      // 1. Create each node with its EXACT saved ID
+      data.nodes.forEach(nData => {
+        const node = addNode(nData.type, nData.x, nData.y, nData.state, nData.id);
+        if (node) {
+          const idNum = parseInt((nData.id || '').replace(/\D/g, '')) || 0;
+          if (idNum > maxNId) maxNId = idNum;
+
+          // If vtu_input outputs were saved and vtuData is not yet loaded, restore ports
+          if (nData.type === 'vtu_input' && (!vtuData || !vtuData.fields) && Array.isArray(nData.outputs) && nData.outputs.length > 0) {
+            node.outputs = nData.outputs;
+            renderNodeSockets(node);
+            if (node.ui && node.ui.infoBox) {
+              node.ui.infoBox.innerHTML = `<span>保存されたポート構成 (${node.outputs.length} ポート) を読込済<br><small style="color:#94a3b8;">※VTUファイルをドロップするとデータが反映されます</small></span>`;
+            }
+          }
+        }
+      });
+      nextNodeId = Math.max(nextNodeId, maxNId + 1);
+
+      // 2. Restore wires, avoiding duplicate connections to the same target input socket
+      wires = [];
+      const targetInputSeen = new Set();
+      data.wires.forEach(wData => {
+        if (!wData.fromNode || !wData.fromSocket || !wData.toNode || !wData.toSocket) return;
+        const targetKey = `${wData.toNode}__${wData.toSocket}`;
+        if (targetInputSeen.has(targetKey)) return;
+        targetInputSeen.add(targetKey);
+
+        wires.push({
+          id: wData.id || `wire_${nextWireId++}`,
+          fromNode: wData.fromNode,
+          fromSocket: wData.fromSocket,
+          toNode: wData.toNode,
+          toSocket: wData.toSocket
+        });
+        const wNum = parseInt((wData.id || '').replace(/\D/g, '')) || 0;
+        if (wNum > maxWId) maxWId = wNum;
+      });
+      nextWireId = Math.max(nextWireId, maxWId + 1);
+
+      updateNodeGraphTransform();
+      drawWires();
+      resetAllTimeNodes('import_graph');
+      executeGraph();
+      autoSaveToLocalStorage();
+      statusBar.innerHTML = `<span>📂 パイプライン設定を読込完了 (${nodes.length} ノード, ${wires.length} 配線)</span>`;
+    }
+
+    function loadFlowFromFile(file) {
+      statusBar.innerHTML = `<span>⏳ 設定読込中: ${file.name}...</span>`;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const json = JSON.parse(e.target.result);
+          importGraphData(json);
+        } catch (err) {
+          console.error('Flow Load Error:', err);
+          alert('パイプライン設定の読み込みに失敗しました:\n' + err.message);
+          statusBar.innerHTML = `<span style="color:#ef4444;">❌ 設定読込エラー</span>`;
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // ==========================================
+    // 7. File Loading & Drag-and-Drop
+    // ==========================================
+    async function loadVTUFile(file) {
+      try {
+        const buffer = await file.arrayBuffer();
+        await loadVTUBinary(file.name, buffer);
+      } catch (err) {
+        console.error('VTU File Read Error:', err);
+        alert(`VTU 読み込みに失敗しました:\n${err.message}`);
+        statusBar.innerHTML = `<span style="color:#ef4444;">❌ エラー: ${err.message}</span>`;
+      }
+    }
+
+    async function loadVTUBinary(fileName, buffer) {
+      statusBar.innerHTML = `<span>⏳ VTU 読込中: ${fileName}...</span>`;
+      try {
+        const uint8 = new Uint8Array(buffer);
+        const tagBytes = new TextEncoder().encode('<AppendedData');
+        let appendedPos = -1;
+        for (let i = 0; i < uint8.length - tagBytes.length; i++) {
+          let match = true;
+          for (let j = 0; j < tagBytes.length; j++) {
+            if (uint8[i + j] !== tagBytes[j]) { match = false; break; }
+          }
+          if (match) { appendedPos = i; break; }
+        }
+
+        let xmlText = '';
+        if (appendedPos >= 0) {
+          const headerText = new TextDecoder('utf-8').decode(buffer.slice(0, appendedPos));
+          xmlText = headerText + '<AppendedData encoding="raw"></AppendedData></VTKFile>';
+        } else {
+          xmlText = new TextDecoder('utf-8').decode(buffer);
+        }
+
+        const isFirstLoad = !hasLoadedFile;
+        vtuData = parseVTU(xmlText, buffer, appendedPos);
+
+        if (isFirstLoad) {
+          fitCamera();
+          hasLoadedFile = true;
+        } else {
+          // ファイル再読込・ステップ切替時: グラフの表示位置（視点・パン・ズーム）を変更せずそのまま維持
+          updateCameraProjection();
+        }
+        updateWireframeAndBoundaryMeshes();
+
+        // Refresh all existing VTU input nodes with the new field ports
+        nodes.filter(n => n.type === 'vtu_input').forEach(n => {
+          populateVtuInputPorts(n);
+          renderNodeSockets(n);
+          if (n.ui && n.ui.infoBox) {
+            const count = Object.keys(vtuData.fields).length;
+            n.ui.infoBox.innerHTML = `<span>節点数: ${vtuData.numPoints.toLocaleString()}</span><span>全 ${count} 物理量 (${n.outputs.length} ポート) を出力中</span>`;
+          }
+        });
+        drawWires();
+
+        // Connect first VTU port to contour if not already wired
+        const contourNode = nodes.find(n => n.type === 'output_contour');
+        const vtuNode = nodes.find(n => n.type === 'vtu_input');
+        if (nodes.length === 0) {
+          initDefaultGraph();
+        } else {
+          if (wires.length === 0 && contourNode && vtuNode && vtuNode.outputs.length > 0) {
+            addWire(vtuNode.id, vtuNode.outputs[0].id, contourNode.id, 'in_field');
+          }
+          resetAllTimeNodes('vtu_load');
+          executeGraph();
+        }
+
+        statusBar.innerHTML = `<span>✅ 読込成功: ${fileName} (節点: ${vtuData.numPoints.toLocaleString()}, 要素: ${vtuData.numCells.toLocaleString()})</span>`;
+      } catch (err) {
+        console.error('VTU Load Error:', err);
+        if (typeof vscode !== 'undefined' && vscode) {
+          vscode.postMessage({ type: 'error', message: `VTU 読み込みに失敗しました: ${err.message}` });
+        } else {
+          alert(`VTU 読み込みに失敗しました:\n${err.message}`);
+        }
+        statusBar.innerHTML = `<span style="color:#ef4444;">❌ エラー: ${err.message}</span>`;
+      }
+    }
+
+    // File Input
+    document.getElementById('file-input').addEventListener('change', (e) => {
+      if (e.target.files.length > 0) loadVTUFile(e.target.files[0]);
+    });
+
+    // Drag and Drop
+    const dropZone = document.getElementById('drop-zone');
+    window.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('active');
+    });
+    window.addEventListener('dragleave', (e) => {
+      if (e.clientX <= 0 || e.clientY <= 0) dropZone.classList.remove('active');
+    });
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('active');
+      if (e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        if (file.name.toLowerCase().endsWith('.json')) {
+          loadFlowFromFile(file);
+        } else {
+          loadVTUFile(file);
+        }
+      }
+    });
+
+    // ==========================================
+    // 8. Toolbar UI Handlers
+    // ==========================================
+    // Toggle Nodes Visibility
+    let nodesVisible = true;
+    function toggleNodeVisibility() {
+      nodesVisible = !nodesVisible;
+      nodeGraphLayer.style.visibility = nodesVisible ? 'visible' : 'hidden';
+      nodeGraphLayer.style.pointerEvents = nodesVisible ? 'auto' : 'none';
+      viewportContainer.style.cursor = nodesVisible ? 'default' : 'grab';
+      document.getElementById('btn-toggle-nodes').innerHTML = nodesVisible
+        ? '👁️ ノード切替 <span class="key-badge">Tab</span>'
+        : '🙈 3D全画面表示中 <span class="key-badge">Tab</span>';
+    }
+
+    document.getElementById('btn-toggle-nodes').addEventListener('click', toggleNodeVisibility);
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        cancelPickingProbe();
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        toggleNodeVisibility();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        const selected = document.querySelector('.node-card.selected');
+        if (selected && document.activeElement.tagName !== 'INPUT') {
+          removeNode(selected.id);
+        }
+      }
+    });
+
+    // Wireframe & Boundary toggles
+    document.getElementById('chk-wireframe').addEventListener('change', updateWireframeAndBoundaryMeshes);
+    document.getElementById('chk-boundary').addEventListener('change', updateWireframeAndBoundaryMeshes);
+    document.getElementById('btn-reset-cam').addEventListener('click', reset3DCamera);
+
+    // Save & Load Pipeline Buttons
+    document.getElementById('btn-save-flow').onclick = saveGraphToFile;
+    document.getElementById('btn-load-flow').onclick = () => {
+      document.getElementById('flow-file-input').click();
+    };
+    document.getElementById('flow-file-input').addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        loadFlowFromFile(e.target.files[0]);
+        e.target.value = '';
+      }
+    });
+
+    // Add Node Context Menu
+    const addMenuBtn = document.getElementById('btn-add-node-menu');
+    const addMenu = document.getElementById('add-node-menu');
+    let addMenuClickPos = null;
+
+    addMenuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      addMenuClickPos = null;
+      const rect = addMenuBtn.getBoundingClientRect();
+      addMenu.style.left = `${rect.left}px`;
+      addMenu.style.top = `${rect.bottom + 6}px`;
+      addMenu.style.display = addMenu.style.display === 'flex' ? 'none' : 'flex';
+    });
+
+    document.querySelectorAll('.menu-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const type = item.dataset.type;
+        let x, y;
+        if (addMenuClickPos) {
+          x = addMenuClickPos.x;
+          y = addMenuClickPos.y;
+          addMenuClickPos = null;
+        } else {
+          const screenX = Math.min(window.innerWidth - 300, 120 + Math.random() * 150);
+          const screenY = Math.min(window.innerHeight - 300, 120 + Math.random() * 150);
+          x = (screenX - nodePan.x) / nodeZoom;
+          y = (screenY - nodePan.y) / nodeZoom;
+        }
+        addNode(type, x, y);
+        addMenu.style.display = 'none';
+      });
+    });
+
+    window.addEventListener('click', () => {
+      addMenu.style.display = 'none';
+      addMenuClickPos = null;
+    });
+
+    // Right-click on node layer to show Add Node menu
+    nodeGraphLayer.addEventListener('contextmenu', (e) => {
+      if (e.target === nodeGraphLayer || e.target === wireCanvas || e.target === nodesContainer) {
+        e.preventDefault();
+        const parentRect = nodeGraphLayer.getBoundingClientRect();
+        addMenuClickPos = {
+          x: (e.clientX - parentRect.left - nodePan.x) / nodeZoom,
+          y: (e.clientY - parentRect.top - nodePan.y) / nodeZoom
+        };
+        addMenu.style.left = `${e.clientX}px`;
+        addMenu.style.top = `${e.clientY}px`;
+        addMenu.style.display = 'flex';
+      }
+    });
+
+    // Initialize View
+    initThree().then(() => {
+      resizeWireCanvas();
+      initDefaultGraph();
+
+      // VSCode Extension Webview Integration
+      const vscode = (typeof acquireVsCodeApi === 'function') ? acquireVsCodeApi() : null;
+      if (vscode) {
+        window.addEventListener('message', async (event) => {
+          const msg = event.data;
+          if (!msg) return;
+
+          if (msg.type === 'loadVTU') {
+            try {
+              let buffer = null;
+              if (typeof msg.base64 === 'string') {
+                const binaryStr = atob(msg.base64);
+                const bytes = new Uint8Array(binaryStr.length);
+                for (let i = 0; i < binaryStr.length; i++) {
+                  bytes[i] = binaryStr.charCodeAt(i);
+                }
+                buffer = bytes.buffer;
+              } else if (msg.buffer instanceof ArrayBuffer) {
+                buffer = msg.buffer;
+              } else if (ArrayBuffer.isView(msg.buffer)) {
+                buffer = msg.buffer.buffer.slice(msg.buffer.byteOffset, msg.buffer.byteOffset + msg.buffer.byteLength);
+              } else if (msg.buffer && msg.buffer.buffer instanceof ArrayBuffer) {
+                buffer = msg.buffer.buffer;
+              } else if (Array.isArray(msg.buffer)) {
+                buffer = new Uint8Array(msg.buffer).buffer;
+              } else if (typeof msg.buffer === 'object' && msg.buffer.data) {
+                buffer = new Uint8Array(msg.buffer.data).buffer;
+              }
+              if (buffer) {
+                await loadVTUBinary(msg.fileName || 'model.vtu', buffer);
+              }
+            } catch (e) {
+              console.error('Failed to load VTU from VSCode:', e);
+              vscode.postMessage({ type: 'error', message: `VTU読み込みエラー: ${e.message}` });
+            }
+          } else if (msg.type === 'loadFlow') {
+            if (msg.jsonText) {
+              try {
+                const data = JSON.parse(msg.jsonText);
+                importGraphData(data);
+                drawWires();
+                executeGraph();
+                statusBar.innerHTML = `<span>✅ ノード設定を読み込みました</span>`;
+              } catch (err) {
+                console.error('Failed to parse flow json:', err);
+                vscode.postMessage({ type: 'error', message: `ノード設定読込エラー: ${err.message}` });
+              }
+            }
+          } else if (msg.type === 'savedFlow') {
+            statusBar.innerHTML = `<span>💾 パイプライン設定を保存しました: ${msg.fileName}</span>`;
+          }
+        });
+
+        // Override file open & save buttons if running inside VSCode
+        const btnLoadVtu = document.getElementById('btn-load-vtu');
+        if (btnLoadVtu) {
+          btnLoadVtu.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            vscode.postMessage({ type: 'openVtuDialog' });
+          };
+        }
+        const btnLoadFlow = document.getElementById('btn-load-flow');
+        if (btnLoadFlow) {
+          btnLoadFlow.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            vscode.postMessage({ type: 'openFlowDialog' });
+          };
+        }
+        const btnSaveFlow = document.getElementById('btn-save-flow');
+        if (btnSaveFlow) {
+          btnSaveFlow.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const data = exportGraphData();
+            autoSaveToLocalStorage();
+            const jsonStr = JSON.stringify(data, null, 2);
+            const dateStr = new Date().toISOString().slice(0, 10);
+            vscode.postMessage({
+              type: 'saveFlowDialog',
+              jsonText: jsonStr,
+              defaultName: `vtu_pipeline_${dateStr}.json`
+            });
+          };
+        }
+
+        // Notify VSCode extension host that webview is ready
+        vscode.postMessage({ type: 'ready' });
+      }
+    });
+  </script>
+</body>
+
+</html>
