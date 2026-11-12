@@ -1,0 +1,126 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Elmer Solver Input File",
+  "scopeName": "source.sif",
+  "fileTypes": ["sif"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#matc" },
+    { "include": "#section-headers" },
+    { "include": "#section-end" },
+    { "include": "#booleans" },
+    { "include": "#numbers" },
+    { "include": "#operators" },
+    { "include": "#keywords" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.exclamation.sif",
+          "match": "!.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.sif",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.sif",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "matc": {
+      "patterns": [
+        {
+          "name": "string.interpolated.matc.sif",
+          "begin": "\\$",
+          "end": "\\$",
+          "patterns": [
+            {
+              "name": "keyword.operator.arithmetic.sif",
+              "match": "[+\\-*/^=<>!&|]"
+            },
+            {
+              "name": "support.function.matc.sif",
+              "match": "\\b(sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|exp|log|ln|sqrt|abs|min|max|pi)\\b"
+            },
+            {
+              "name": "constant.numeric.sif",
+              "match": "\\b\\d+(?:\\.\\d+)?(?:[eE][+\\-]?\\d+)?\\b"
+            }
+          ]
+        }
+      ]
+    },
+    "section-headers": {
+      "patterns": [
+        {
+          "match": "(?i)^\\s*(Header|Simulation|Constants)\\b",
+          "captures": {
+            "1": { "name": "keyword.control.section.sif" }
+          }
+        },
+        {
+          "match": "(?i)^\\s*(Body Force|Initial Condition|Boundary Condition|Body|Solver|Equation|Material|Component)\\b(?:\\s+(\\d+))?",
+          "captures": {
+            "1": { "name": "keyword.control.section.sif" },
+            "2": { "name": "constant.numeric.section-id.sif" }
+          }
+        }
+      ]
+    },
+    "section-end": {
+      "patterns": [
+        {
+          "name": "keyword.control.end.sif",
+          "match": "(?i)^\\s*End\\b"
+        }
+      ]
+    },
+    "booleans": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.sif",
+          "match": "(?i)\\b(True|False|Logical\\s+True|Logical\\s+False|On|Off)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.sif",
+          "match": "[-+]?\\b\\d+(?:\\.\\d+)?(?:[eE][-+]?\\d+)?\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.assignment.sif",
+          "match": "="
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "support.constant.sif",
+          "match": "(?i)\\b(Warn|Fatal|Silent|Always|Never|Before\\s+Timestep|After\\s+Timestep|Before\\s+Saving|After\\s+Saving|Direct|Iterative|BiCGStab|Idrs|CG|Umfpack|MUMPS|Pardiso|Lumped|None|BDF|RungeKutta|Steady\\s+state|Transient|Scanning)\\b"
+        },
+        {
+          "name": "variable.parameter.sif",
+          "match": "(?i)\\b(Variable|Procedure|Equation|Material|Body\\s+Force|Initial\\s+Condition|Boundary\\s+Condition|Target\\s+Bodies|Target\\s+Boundaries|Name|Mesh\\s+DB|Post\\s+File|Results\\s+Directory)\\b"
+        }
+      ]
+    }
+  }
+}

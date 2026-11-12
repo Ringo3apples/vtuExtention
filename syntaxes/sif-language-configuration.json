@@ -1,0 +1,27 @@
+{
+  "comments": {
+    "lineComment": "!"
+  },
+  "brackets": [
+    ["(", ")"],
+    ["[", "]"]
+  ],
+  "autoClosingPairs": [
+    { "open": "\"", "close": "\"" },
+    { "open": "(", "close": ")" },
+    { "open": "[", "close": "]" },
+    { "open": "$", "close": "$" }
+  ],
+  "surroundingPairs": [
+    ["\"", "\""],
+    ["(", ")"],
+    ["[", "]"],
+    ["$", "$"]
+  ],
+  "folding": {
+    "markers": {
+      "start": "^\\s*(?:Header|Simulation|Constants|Body\\b|Solver\\b|Equation\\b|Material\\b|Body Force\\b|Initial Condition\\b|Boundary Condition\\b|Component\\b)",
+      "end": "^\\s*End\\b"
+    }
+  }
+}

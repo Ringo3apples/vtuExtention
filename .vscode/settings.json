@@ -1,0 +1,6 @@
+{
+  "[bat]": {
+    "editor.inlineSuggest.enabled": false,
+    "editor.suggest.insertMode": "replace"
+  }
+}

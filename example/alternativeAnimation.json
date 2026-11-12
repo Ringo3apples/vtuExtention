@@ -1,0 +1,334 @@
+{
+  "version": 1,
+  "timestamp": "2026-11-12T14:13:57.969Z",
+  "nodePan": {
+    "x": 1280.1853767926962,
+    "y": 378.29674132687364
+  },
+  "nodeZoom": 0.7004644172825603,
+  "nodes": [
+    {
+      "id": "node_1",
+      "type": "vtu_input",
+      "x": 130,
+      "y": 312,
+      "state": {},
+      "outputs": [
+        {
+          "id": "potential re__0",
+          "label": "potential re",
+          "type": "field"
+        },
+        {
+          "id": "potential im__0",
+          "label": "potential im",
+          "type": "field"
+        },
+        {
+          "id": "joule heating__0",
+          "label": "joule heating",
+          "type": "field"
+        },
+        {
+          "id": "magnetic flux density re__mag",
+          "label": "magnetic flux density re (Mag)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic flux density re__0",
+          "label": "magnetic flux density re (X)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic flux density re__1",
+          "label": "magnetic flux density re (Y)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic flux density re__2",
+          "label": "magnetic flux density re (Z)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic flux density im__mag",
+          "label": "magnetic flux density im (Mag)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic flux density im__0",
+          "label": "magnetic flux density im (X)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic flux density im__1",
+          "label": "magnetic flux density im (Y)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic flux density im__2",
+          "label": "magnetic flux density im (Z)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic field strength re__mag",
+          "label": "magnetic field strength re (Mag)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic field strength re__0",
+          "label": "magnetic field strength re (X)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic field strength re__1",
+          "label": "magnetic field strength re (Y)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic field strength re__2",
+          "label": "magnetic field strength re (Z)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic field strength im__mag",
+          "label": "magnetic field strength im (Mag)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic field strength im__0",
+          "label": "magnetic field strength im (X)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic field strength im__1",
+          "label": "magnetic field strength im (Y)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic field strength im__2",
+          "label": "magnetic field strength im (Z)",
+          "type": "field"
+        },
+        {
+          "id": "current density re__mag",
+          "label": "current density re (Mag)",
+          "type": "field"
+        },
+        {
+          "id": "current density re__0",
+          "label": "current density re (X)",
+          "type": "field"
+        },
+        {
+          "id": "current density re__1",
+          "label": "current density re (Y)",
+          "type": "field"
+        },
+        {
+          "id": "current density re__2",
+          "label": "current density re (Z)",
+          "type": "field"
+        },
+        {
+          "id": "current density im__mag",
+          "label": "current density im (Mag)",
+          "type": "field"
+        },
+        {
+          "id": "current density im__0",
+          "label": "current density im (X)",
+          "type": "field"
+        },
+        {
+          "id": "current density im__1",
+          "label": "current density im (Y)",
+          "type": "field"
+        },
+        {
+          "id": "current density im__2",
+          "label": "current density im (Z)",
+          "type": "field"
+        }
+      ]
+    },
+    {
+      "id": "node_3",
+      "type": "time_input",
+      "x": 137,
+      "y": -57,
+      "state": {
+        "elapsed": 110.67390000000793,
+        "running": true,
+        "speed": 1,
+        "freq": 0.2,
+        "autoReset": true
+      }
+    },
+    {
+      "id": "node_4",
+      "type": "binary_math",
+      "x": 562,
+      "y": 655,
+      "state": {
+        "op": "mul"
+      }
+    },
+    {
+      "id": "node_5",
+      "type": "binary_math",
+      "x": 567,
+      "y": 463,
+      "state": {
+        "op": "mul"
+      }
+    },
+    {
+      "id": "node_6",
+      "type": "binary_math",
+      "x": 565,
+      "y": 264,
+      "state": {
+        "op": "mul"
+      }
+    },
+    {
+      "id": "node_7",
+      "type": "binary_math",
+      "x": 563,
+      "y": 84,
+      "state": {
+        "op": "mul"
+      }
+    },
+    {
+      "id": "node_8",
+      "type": "binary_math",
+      "x": 940,
+      "y": 246,
+      "state": {
+        "op": "add"
+      }
+    },
+    {
+      "id": "node_9",
+      "type": "output_vectors",
+      "x": 1324,
+      "y": 347,
+      "state": {
+        "scale": 0.06309573444801933,
+        "step": 1,
+        "color": "#38bdf8",
+        "shape": "arrow"
+      }
+    },
+    {
+      "id": "node_10",
+      "type": "binary_math",
+      "x": 941,
+      "y": 457,
+      "state": {
+        "op": "add"
+      }
+    }
+  ],
+  "wires": [
+    {
+      "id": "wire_2",
+      "fromNode": "node_3",
+      "fromSocket": "out_sin",
+      "toNode": "node_7",
+      "toSocket": "in_a"
+    },
+    {
+      "id": "wire_3",
+      "fromNode": "node_3",
+      "fromSocket": "out_sin",
+      "toNode": "node_6",
+      "toSocket": "in_a"
+    },
+    {
+      "id": "wire_4",
+      "fromNode": "node_3",
+      "fromSocket": "out_cos",
+      "toNode": "node_5",
+      "toSocket": "in_a"
+    },
+    {
+      "id": "wire_5",
+      "fromNode": "node_3",
+      "fromSocket": "out_cos",
+      "toNode": "node_4",
+      "toSocket": "in_a"
+    },
+    {
+      "id": "wire_6",
+      "fromNode": "node_1",
+      "fromSocket": "magnetic flux density re__0",
+      "toNode": "node_7",
+      "toSocket": "in_b"
+    },
+    {
+      "id": "wire_7",
+      "fromNode": "node_1",
+      "fromSocket": "magnetic flux density re__1",
+      "toNode": "node_6",
+      "toSocket": "in_b"
+    },
+    {
+      "id": "wire_8",
+      "fromNode": "node_1",
+      "fromSocket": "magnetic flux density im__0",
+      "toNode": "node_5",
+      "toSocket": "in_b"
+    },
+    {
+      "id": "wire_9",
+      "fromNode": "node_1",
+      "fromSocket": "magnetic flux density im__1",
+      "toNode": "node_4",
+      "toSocket": "in_b"
+    },
+    {
+      "id": "wire_10",
+      "fromNode": "node_7",
+      "fromSocket": "out_res",
+      "toNode": "node_8",
+      "toSocket": "in_a"
+    },
+    {
+      "id": "wire_11",
+      "fromNode": "node_5",
+      "fromSocket": "out_res",
+      "toNode": "node_8",
+      "toSocket": "in_b"
+    },
+    {
+      "id": "wire_12",
+      "fromNode": "node_6",
+      "fromSocket": "out_res",
+      "toNode": "node_10",
+      "toSocket": "in_a"
+    },
+    {
+      "id": "wire_13",
+      "fromNode": "node_4",
+      "fromSocket": "out_res",
+      "toNode": "node_10",
+      "toSocket": "in_b"
+    },
+    {
+      "id": "wire_14",
+      "fromNode": "node_8",
+      "fromSocket": "out_res",
+      "toNode": "node_9",
+      "toSocket": "in_vx"
+    },
+    {
+      "id": "wire_15",
+      "fromNode": "node_10",
+      "fromSocket": "out_res",
+      "toNode": "node_9",
+      "toSocket": "in_vy"
+    }
+  ]
+}

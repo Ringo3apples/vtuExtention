@@ -3,6 +3,11 @@ const fs = require('fs');
 const path = require('path');
 
 const VIEW_TYPE = 'vtuNodeProcessor.vtuEditor';
+const SHARED_VIEW_TYPE = 'vtuNodeProcessor.sharedViewer';
+
+let sharedViewerPanel = null;
+let sharedViewerReady = false;
+let pendingSharedVtuUri = null;
 
 /**
  * Send a VTU file's binary contents to the webview.
@@ -58,17 +63,17 @@ function getWebviewHtml(webview, extensionUri) {
 /**
  * Attach message handlers between the VSCode extension host and the webview.
  * @param {vscode.Webview} webview
- * @param {vscode.Uri | undefined} initialUri
+ * @param {{ onReady?: () => Promise<void> | void, onVtuLoaded?: (uri: vscode.Uri) => void }} [hooks]
  * @returns {vscode.Disposable}
  */
-function attachWebviewHandlers(webview, initialUri) {
+function attachWebviewHandlers(webview, hooks = {}) {
   return webview.onDidReceiveMessage(async (msg) => {
     if (!msg || !msg.type) return;
 
     switch (msg.type) {
       case 'ready': {
-        if (initialUri) {
-          await postVtuFile(webview, initialUri);
+        if (hooks.onReady) {
+          await hooks.onReady();
         }
         break;
       }
@@ -84,6 +89,9 @@ function attachWebviewHandlers(webview, initialUri) {
         });
         if (selected && selected.length > 0) {
           await postVtuFile(webview, selected[0]);
+          if (hooks.onVtuLoaded) {
+            hooks.onVtuLoaded(selected[0]);
+          }
         }
         break;
       }
@@ -150,6 +158,95 @@ function attachWebviewHandlers(webview, initialUri) {
 }
 
 /**
+ * Open or reuse the single shared VTU viewer panel and stream the selected .vtu file into it
+ * without resetting the existing 3D view or node graph.
+ * @param {vscode.Uri | undefined} fileUri
+ * @param {vscode.ExtensionContext} context
+ * @param {{ preserveFocus?: boolean }} [options]
+ */
+async function openInSharedViewer(fileUri, context, options = {}) {
+  const preserveFocus = Boolean(options.preserveFocus);
+  const titleForUri = (uri) =>
+    uri ? `VTU: ${path.basename(uri.fsPath || uri.path)}` : 'VTU Node Processor';
+
+  if (sharedViewerPanel) {
+    if (fileUri) {
+      sharedViewerPanel.title = titleForUri(fileUri);
+      if (sharedViewerReady) {
+        await postVtuFile(sharedViewerPanel.webview, fileUri);
+      } else {
+        pendingSharedVtuUri = fileUri;
+      }
+    }
+    sharedViewerPanel.reveal(sharedViewerPanel.viewColumn, preserveFocus);
+    return;
+  }
+
+  sharedViewerReady = false;
+  pendingSharedVtuUri = fileUri || null;
+
+  sharedViewerPanel = vscode.window.createWebviewPanel(
+    SHARED_VIEW_TYPE,
+    titleForUri(fileUri),
+    vscode.ViewColumn.One,
+    {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [context.extensionUri]
+    }
+  );
+  sharedViewerPanel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
+  sharedViewerPanel.webview.html = getWebviewHtml(sharedViewerPanel.webview, context.extensionUri);
+
+  const messageDisposable = attachWebviewHandlers(sharedViewerPanel.webview, {
+    onReady: async () => {
+      sharedViewerReady = true;
+      if (pendingSharedVtuUri && sharedViewerPanel) {
+        const uriToLoad = pendingSharedVtuUri;
+        pendingSharedVtuUri = null;
+        await postVtuFile(sharedViewerPanel.webview, uriToLoad);
+      }
+    },
+    onVtuLoaded: (loadedUri) => {
+      if (sharedViewerPanel) {
+        sharedViewerPanel.title = titleForUri(loadedUri);
+      }
+    }
+  });
+
+  sharedViewerPanel.onDidDispose(() => {
+    sharedViewerPanel = null;
+    sharedViewerReady = false;
+    pendingSharedVtuUri = null;
+    messageDisposable.dispose();
+  });
+}
+
+/**
+ * Resolve a .vtu URI from command argument, active editor, or file open dialog.
+ * @param {vscode.Uri | undefined} uri
+ * @returns {Promise<vscode.Uri | undefined>}
+ */
+async function resolveTargetVtuUri(uri) {
+  if (uri) return uri;
+
+  const activeUri = vscode.window.activeTextEditor?.document.uri;
+  if (activeUri && activeUri.fsPath.toLowerCase().endsWith('.vtu')) {
+    return activeUri;
+  }
+
+  const selected = await vscode.window.showOpenDialog({
+    canSelectMany: false,
+    openLabel: 'VTUファイルを開く',
+    filters: {
+      'VTU Files': ['vtu'],
+      'All Files': ['*']
+    }
+  });
+  return selected && selected.length > 0 ? selected[0] : undefined;
+}
+
+/**
  * Custom readonly editor provider for .vtu files.
  */
 class VtuEditorProvider {
@@ -175,6 +272,18 @@ class VtuEditorProvider {
    * @param {vscode.WebviewPanel} webviewPanel
    */
   async resolveCustomEditor(document, webviewPanel) {
+    const singleViewerMode = vscode.workspace
+      .getConfiguration('vtuNodeProcessor')
+      .get('singleViewerMode', true);
+
+    if (singleViewerMode) {
+      await openInSharedViewer(document.uri, this.context, { preserveFocus: true });
+      setTimeout(() => {
+        webviewPanel.dispose();
+      }, 0);
+      return;
+    }
+
     webviewPanel.webview.options = {
       enableScripts: true,
       localResourceRoots: [this.context.extensionUri]
@@ -182,7 +291,11 @@ class VtuEditorProvider {
 
     webviewPanel.webview.html = getWebviewHtml(webviewPanel.webview, this.context.extensionUri);
 
-    const messageDisposable = attachWebviewHandlers(webviewPanel.webview, document.uri);
+    const messageDisposable = attachWebviewHandlers(webviewPanel.webview, {
+      onReady: async () => {
+        await postVtuFile(webviewPanel.webview, document.uri);
+      }
+    });
     webviewPanel.onDidDispose(() => {
       messageDisposable.dispose();
     });
@@ -205,54 +318,36 @@ function activate(context) {
   );
 
   context.subscriptions.push(
+    vscode.commands.registerCommand('vtuNodeProcessor.openInSharedViewer', async (uri) => {
+      const targetUri = await resolveTargetVtuUri(uri);
+      if (!targetUri) return;
+      await openInSharedViewer(targetUri, context);
+    })
+  );
+
+  context.subscriptions.push(
     vscode.commands.registerCommand('vtuNodeProcessor.openFile', async (uri) => {
-      let targetUri = uri;
-      if (!targetUri && vscode.window.activeTextEditor) {
-        const activeUri = vscode.window.activeTextEditor.document.uri;
-        if (activeUri.fsPath.toLowerCase().endsWith('.vtu')) {
-          targetUri = activeUri;
-        }
+      const targetUri = await resolveTargetVtuUri(uri);
+      if (!targetUri) return;
+
+      const singleViewerMode = vscode.workspace
+        .getConfiguration('vtuNodeProcessor')
+        .get('singleViewerMode', true);
+
+      if (singleViewerMode) {
+        await openInSharedViewer(targetUri, context);
+      } else {
+        await vscode.commands.executeCommand('vscode.openWith', targetUri, VIEW_TYPE);
       }
-      if (!targetUri) {
-        const selected = await vscode.window.showOpenDialog({
-          canSelectMany: false,
-          openLabel: 'VTUファイルを開く',
-          filters: {
-            'VTU Files': ['vtu'],
-            'All Files': ['*']
-          }
-        });
-        if (!selected || selected.length === 0) return;
-        targetUri = selected[0];
-      }
-      await vscode.commands.executeCommand('vscode.openWith', targetUri, VIEW_TYPE);
     })
   );
 
   context.subscriptions.push(
     vscode.commands.registerCommand('vtuNodeProcessor.openViewer', async () => {
       const activeUri = vscode.window.activeTextEditor?.document.uri;
-      if (activeUri && activeUri.fsPath.toLowerCase().endsWith('.vtu')) {
-        await vscode.commands.executeCommand('vscode.openWith', activeUri, VIEW_TYPE);
-        return;
-      }
-
-      const panel = vscode.window.createWebviewPanel(
-        'vtuNodeProcessor.standalone',
-        'VTU Node Processor',
-        vscode.ViewColumn.One,
-        {
-          enableScripts: true,
-          retainContextWhenHidden: true,
-          localResourceRoots: [context.extensionUri]
-        }
-      );
-
-      panel.webview.html = getWebviewHtml(panel.webview, context.extensionUri);
-      const messageDisposable = attachWebviewHandlers(panel.webview, undefined);
-      panel.onDidDispose(() => {
-        messageDisposable.dispose();
-      });
+      const vtuUri =
+        activeUri && activeUri.fsPath.toLowerCase().endsWith('.vtu') ? activeUri : undefined;
+      await openInSharedViewer(vtuUri, context);
     })
   );
 }
@@ -263,4 +358,3 @@ module.exports = {
   activate,
   deactivate
 };
-

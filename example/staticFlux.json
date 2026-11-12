@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "timestamp": "2026-11-12T14:29:55.110Z",
+  "nodePan": {
+    "x": -228.62790400000017,
+    "y": -73.17249600000002
+  },
+  "nodeZoom": 1.116416,
+  "nodes": [
+    {
+      "id": "node_1",
+      "type": "vtu_input",
+      "x": 1239,
+      "y": 681,
+      "state": {},
+      "outputs": [
+        {
+          "id": "potential__0",
+          "label": "potential",
+          "type": "field"
+        },
+        {
+          "id": "magnetic flux density__mag",
+          "label": "magnetic flux density (Mag)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic flux density__0",
+          "label": "magnetic flux density (X)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic flux density__1",
+          "label": "magnetic flux density (Y)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic flux density__2",
+          "label": "magnetic flux density (Z)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic field strength__mag",
+          "label": "magnetic field strength (Mag)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic field strength__0",
+          "label": "magnetic field strength (X)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic field strength__1",
+          "label": "magnetic field strength (Y)",
+          "type": "field"
+        },
+        {
+          "id": "magnetic field strength__2",
+          "label": "magnetic field strength (Z)",
+          "type": "field"
+        },
+        {
+          "id": "current density__mag",
+          "label": "current density (Mag)",
+          "type": "field"
+        },
+        {
+          "id": "current density__0",
+          "label": "current density (X)",
+          "type": "field"
+        },
+        {
+          "id": "current density__1",
+          "label": "current density (Y)",
+          "type": "field"
+        },
+        {
+          "id": "current density__2",
+          "label": "current density (Z)",
+          "type": "field"
+        }
+      ]
+    },
+    {
+      "id": "node_3",
+      "type": "output_vectors",
+      "x": 1757,
+      "y": 724,
+      "state": {
+        "scale": 0.05011872336272722,
+        "step": 1,
+        "color": "#38bdf8",
+        "shape": "arrow"
+      }
+    }
+  ],
+  "wires": [
+    {
+      "id": "wire_6",
+      "fromNode": "node_1",
+      "fromSocket": "magnetic flux density__0",
+      "toNode": "node_3",
+      "toSocket": "in_vx"
+    },
+    {
+      "id": "wire_7",
+      "fromNode": "node_1",
+      "fromSocket": "magnetic flux density__1",
+      "toNode": "node_3",
+      "toSocket": "in_vy"
+    }
+  ]
+}
