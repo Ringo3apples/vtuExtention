@@ -37,5 +37,5 @@ npx @vscode/vsce package --allow-missing-repository
 
 ## ライセンス
 
-[MIT](LICENSE)
+MIT License（詳細は同梱の `LICENSE` ファイルを参照してください）
 
