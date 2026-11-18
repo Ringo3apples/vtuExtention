@@ -2,7 +2,7 @@
   "name": "vtu-node-processor",
   "displayName": "VTU Node Processor",
   "description": "VTU No-Code Data Flow Studio (WebGPU / WebGL2 Node Processor) for viewing and analyzing .vtu files in VS Code.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "Ringo3Apples",
   "repository": {
     "type": "git",
