@@ -4,6 +4,10 @@
   "description": "VTU No-Code Data Flow Studio (WebGPU / WebGL2 Node Processor) for viewing and analyzing .vtu files in VS Code.",
   "version": "0.2.0",
   "publisher": "Ringo3Apples",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ringo3apples/vtuExtention.git"
+  },
   "license": "MIT",
   "icon": "icon.png",
   "engines": {
