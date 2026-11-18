@@ -30,7 +30,7 @@ jobs:
         run: npm ci
 
       - name: Publish to VS Code Marketplace (OIDC)
-        run: npx --yes @vscode/vsce publish --oidc
+        run: npx @vscode/vsce publish --oidc
 
       - name: Publish to Open VSX Registry (OIDC)
-        run: npx --yes ovsx publish --trusted-publishing
+        run: npx ovsx publish --trusted-publishing

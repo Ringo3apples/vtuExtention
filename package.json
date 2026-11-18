@@ -91,8 +91,13 @@
     "languages": [
       {
         "id": "sif",
-        "aliases": ["Elmer SIF", "sif"],
-        "extensions": [".sif"],
+        "aliases": [
+          "Elmer SIF",
+          "sif"
+        ],
+        "extensions": [
+          ".sif"
+        ],
         "configuration": "./syntaxes/sif-language-configuration.json"
       }
     ],
@@ -106,6 +111,9 @@
   },
   "dependencies": {
     "three": "0.170.0"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^4.1.1",
+    "ovsx": "^1.4.0"
   }
 }
-
